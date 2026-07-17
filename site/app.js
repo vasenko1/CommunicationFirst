@@ -10,14 +10,25 @@ const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 function describeCandidate(candidate) {
   const raw = candidate?.candidate || "";
   const typeMatch = raw.match(/\btyp\s+([a-z]+)/i);
-  const type = typeMatch?.[1] || "unknown";
+  const type = typeMatch?.[1] || candidate?.candidateType || "unknown";
 
-  const addressMatch = raw.match(
-    /^candidate:\S+\s+\d+\s+\S+\s+\d+\s+([^\s]+)\s+\d+\s+typ\s+[a-z]+/i
-  );
+  const address =
+    candidate?.address ||
+    candidate?.ip ||
+    candidate?.relatedAddress ||
+    "";
 
-  const address = addressMatch?.[1] || "";
-  return address ? `${type} ${address}` : type;
+  const port = candidate?.port ? `:${candidate.port}` : "";
+  const protocol = candidate?.protocol ? `/${candidate.protocol}` : "";
+
+  return [type, address ? `${address}${port}` : "", protocol]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function fmtNumber(value) {
+  return Number.isFinite(value) ? value.toFixed(3) : "n/a";
 }
 
 class AppController {
@@ -27,6 +38,7 @@ class AppController {
     this.debug = new DebugPanel(document.getElementById("debugLog"));
     this.signaling = null;
     this.peer = null;
+    this.statsTimer = null;
     this.init();
   }
 
@@ -159,10 +171,11 @@ class AppController {
     });
 
     this.peer.addEventListener("candidate", (event) => {
-      this.debug.log("TX candidate", describeCandidate(event.detail));
+      const candidate = event.detail;
+      this.debug.log("TX candidate", describeCandidate(candidate));
       this.sendSignal({
         type: "candidate",
-        candidate: event.detail
+        candidate
       });
     });
 
@@ -181,6 +194,7 @@ class AppController {
         case "connected":
           this.state.callState = CALL_STATES.CONNECTED;
           this.ui.setStatus("Connected", "🟢");
+          this.startStatsPolling();
           break;
         case "disconnected":
           this.state.callState = CALL_STATES.RECONNECTING;
@@ -189,6 +203,7 @@ class AppController {
         case "failed":
         case "closed":
           this.state.callState = CALL_STATES.ENDED;
+          this.stopStatsPolling();
           this.endCall(true, false);
           this.ui.setStatus("Call ended", "🔴");
           break;
@@ -315,15 +330,95 @@ class AppController {
 
     if (message.type === "leave") {
       this.debug.log("Call", "peer left");
+      this.stopStatsPolling();
       this.endCall(true, false);
       this.ui.setStatus("Ready", "🟢");
     }
+  }
+
+  async updateStats() {
+    if (!this.state.active || !this.state.pc) return;
+
+    try {
+      const stats = await this.state.pc.getStats();
+      const localCandidates = new Map();
+      const remoteCandidates = new Map();
+
+      let selectedPair = null;
+
+      stats.forEach((report) => {
+        if (report.type === "local-candidate") {
+          localCandidates.set(report.id, report);
+        } else if (report.type === "remote-candidate") {
+          remoteCandidates.set(report.id, report);
+        }
+      });
+
+      stats.forEach((report) => {
+        if (report.type !== "candidate-pair") return;
+        if (report.selected || report.nominated || report.state === "succeeded") {
+          if (!selectedPair || report.selected) {
+            selectedPair = report;
+          }
+        }
+      });
+
+      if (!selectedPair) {
+        this.debug.log("Stats", "no selected candidate pair");
+        return;
+      }
+
+      const local = localCandidates.get(selectedPair.localCandidateId);
+      const remote = remoteCandidates.get(selectedPair.remoteCandidateId);
+
+      this.debug.log(
+        "Stats",
+        `pair=${selectedPair.state || "unknown"} local=${describeCandidate(local)} remote=${describeCandidate(remote)} rtt=${fmtNumber(selectedPair.currentRoundTripTime)}`
+      );
+    } catch (error) {
+      this.debug.log("Stats error", String(error?.message || error));
+    }
+  }
+
+  startStatsPolling() {
+    if (this.statsTimer) return;
+
+    this.statsTimer = setInterval(() => {
+      this.updateStats();
+    }, 1000);
+
+    void this.updateStats();
+    this.debug.log("Stats", "polling started");
+  }
+
+  stopStatsPolling() {
+    if (!this.statsTimer) return;
+    clearInterval(this.statsTimer);
+    this.statsTimer = null;
+    this.debug.log("Stats", "polling stopped");
+  }
+
+  async createAndSendOffer() {
+    if (!this.state.pc || this.state.offerSent) return;
+
+    this.state.offerSent = true;
+    this.ui.setStatus("Negotiating...", "🟡");
+
+    const offer = await this.state.pc.createOffer();
+    await this.state.pc.setLocalDescription(offer);
+
+    this.sendSignal({
+      type: "offer",
+      description: this.state.pc.localDescription
+    });
   }
 
   endCall(resetHash, notifyPeer) {
     const ws = this.signaling;
     const peer = this.peer;
     const peerId = this.state.peerId;
+
+    this.stopStatsPolling();
 
     if (notifyPeer && ws) {
       try {
