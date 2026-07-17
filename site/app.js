@@ -1,4 +1,5 @@
 const SIGNALING_BASE = "wss://communication-first.communication-first-igor.workers.dev";
+const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 
 const App = {
   els: {},
@@ -8,7 +9,10 @@ const App = {
     roomId: null,
     peerId: null,
     ws: null,
-    peerJoined: false,
+    pc: null,
+    localStream: null,
+    pendingCandidates: [],
+    offerSent: false,
   },
 
   init() {
@@ -18,6 +22,7 @@ const App = {
     this.els.inviteBox = document.getElementById("inviteBox");
     this.els.inviteUrl = document.getElementById("inviteUrl");
     this.els.copyButton = document.getElementById("copyInviteBtn");
+    this.els.remoteAudio = document.getElementById("remoteAudio");
 
     this.els.button.addEventListener("click", () => this.onMainAction());
     this.els.copyButton.addEventListener("click", () => this.copyInviteLink());
@@ -88,7 +93,8 @@ const App = {
     this.state.host = host;
     this.state.roomId = roomId;
     this.state.peerId = this.randomHex(8);
-    this.state.peerJoined = false;
+    this.state.pendingCandidates = [];
+    this.state.offerSent = false;
 
     this.els.button.disabled = true;
 
@@ -103,6 +109,7 @@ const App = {
     }
 
     try {
+      await this.preparePeerConnection();
       await this.openSocket();
       this.sendSignal({
         type: "join",
@@ -116,6 +123,66 @@ const App = {
       this.endCall(true, false);
       this.setStatus("Call ended", "🔴");
     }
+  },
+
+  async preparePeerConnection() {
+    this.setStatus("Requesting microphone...", "🟡");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("getUserMedia is not available");
+    }
+
+    const localStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      },
+      video: false
+    });
+
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+    this.state.localStream = localStream;
+    this.state.pc = pc;
+
+    localStream.getTracks().forEach((track) => {
+      pc.addTrack(track, localStream);
+    });
+
+    pc.ontrack = (event) => {
+      const [stream] = event.streams;
+      if (!stream) return;
+      this.els.remoteAudio.srcObject = stream;
+      this.els.remoteAudio.play().catch(() => {});
+    };
+
+    pc.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      this.sendSignal({
+        type: "candidate",
+        candidate: event.candidate
+      });
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (!this.state.active) return;
+
+      switch (pc.connectionState) {
+        case "connected":
+          this.setStatus("Connected", "🟢");
+          break;
+        case "connecting":
+        case "new":
+          this.setStatus("Negotiating...", "🟡");
+          break;
+        case "disconnected":
+        case "failed":
+        case "closed":
+          this.setStatus("Call ended", "🔴");
+          break;
+      }
+    };
   },
 
   openSocket() {
@@ -135,7 +202,9 @@ const App = {
         this.onSignal(event.data).catch((error) => console.error(error));
       };
 
-      ws.onerror = () => reject(new Error("WebSocket failed"));
+      ws.onerror = () => {
+        reject(new Error("WebSocket failed"));
+      };
 
       ws.onclose = () => {
         if (!this.state.active) return;
@@ -159,40 +228,79 @@ const App = {
     }
 
     if (message.type === "join" && this.state.host) {
-      this.state.peerJoined = true;
       this.setStatus("Peer joined", "🟢");
-      this.sendSignal({
-        type: "peer-joined",
-        peerId: this.state.peerId
-      });
+
+      if (!this.state.offerSent) {
+        await this.createAndSendOffer();
+      }
       return;
     }
 
-    if (message.type === "peer-joined" && !this.state.host) {
-      this.state.peerJoined = true;
+    if (message.type === "offer" && !this.state.host) {
+      await this.state.pc.setRemoteDescription(message.description);
+      await this.flushPendingCandidates();
+
+      const answer = await this.state.pc.createAnswer();
+      await this.state.pc.setLocalDescription(answer);
+
+      this.sendSignal({
+        type: "answer",
+        description: this.state.pc.localDescription
+      });
+
       this.setStatus("Negotiating...", "🟡");
-      this.sendSignal({
-        type: "peer-ready",
-        peerId: this.state.peerId
-      });
+      return;
+    }
+
+    if (message.type === "answer" && this.state.host) {
+      await this.state.pc.setRemoteDescription(message.description);
+      await this.flushPendingCandidates();
       this.setStatus("Connected", "🟢");
       return;
     }
 
-    if (message.type === "peer-ready" && this.state.host) {
-      this.setStatus("Connected", "🟢");
+    if (message.type === "candidate") {
+      const candidate = new RTCIceCandidate(message.candidate);
+
+      if (this.state.pc.remoteDescription) {
+        await this.state.pc.addIceCandidate(candidate);
+      } else {
+        this.state.pendingCandidates.push(candidate);
+      }
       return;
     }
 
     if (message.type === "leave") {
       this.endCall(true, false);
       this.setStatus("Ready", "🟢");
-      return;
+    }
+  },
+
+  async createAndSendOffer() {
+    if (!this.state.pc || this.state.offerSent) return;
+
+    this.state.offerSent = true;
+    this.setStatus("Negotiating...", "🟡");
+
+    const offer = await this.state.pc.createOffer();
+    await this.state.pc.setLocalDescription(offer);
+
+    this.sendSignal({
+      type: "offer",
+      description: this.state.pc.localDescription
+    });
+  },
+
+  async flushPendingCandidates() {
+    while (this.state.pendingCandidates.length) {
+      await this.state.pc.addIceCandidate(this.state.pendingCandidates.shift());
     }
   },
 
   endCall(resetHash, notifyPeer) {
     const ws = this.state.ws;
+    const pc = this.state.pc;
+    const stream = this.state.localStream;
     const peerId = this.state.peerId;
 
     if (notifyPeer && ws && ws.readyState === WebSocket.OPEN) {
@@ -205,14 +313,32 @@ const App = {
     this.state.host = false;
     this.state.roomId = null;
     this.state.peerId = null;
-    this.state.peerJoined = false;
     this.state.ws = null;
+    this.state.pc = null;
+    this.state.localStream = null;
+    this.state.pendingCandidates = [];
+    this.state.offerSent = false;
 
     if (ws) {
       try {
         ws.close();
       } catch {}
     }
+
+    if (pc) {
+      pc.ontrack = null;
+      pc.onicecandidate = null;
+      pc.onconnectionstatechange = null;
+      try {
+        pc.close();
+      } catch {}
+    }
+
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+
+    this.els.remoteAudio.srcObject = null;
 
     if (resetHash) {
       history.replaceState(null, "", location.pathname + location.search);
