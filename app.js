@@ -7,6 +7,19 @@ import { DebugPanel } from "./debug.js";
 const SIGNALING_BASE = "wss://communication-first.communication-first-igor.workers.dev";
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 
+function describeCandidate(candidate) {
+  const raw = candidate?.candidate || "";
+  const typeMatch = raw.match(/\btyp\s+([a-z]+)/i);
+  const type = typeMatch?.[1] || "unknown";
+
+  const addressMatch = raw.match(
+    /^candidate:\S+\s+\d+\s+\S+\s+\d+\s+([^\s]+)\s+\d+\s+typ\s+[a-z]+/i
+  );
+
+  const address = addressMatch?.[1] || "";
+  return address ? `${type} ${address}` : type;
+}
+
 class AppController {
   constructor() {
     this.state = createInitialState();
@@ -146,11 +159,11 @@ class AppController {
     });
 
     this.peer.addEventListener("candidate", (event) => {
+      this.debug.log("TX candidate", describeCandidate(event.detail));
       this.sendSignal({
         type: "candidate",
         candidate: event.detail
       });
-      this.debug.log("Peer", "local candidate");
     });
 
     this.peer.addEventListener("connectionstatechange", (event) => {
@@ -295,6 +308,7 @@ class AppController {
     }
 
     if (message.type === "candidate") {
+      this.debug.log("RX candidate", describeCandidate(message.candidate));
       await this.peer.addCandidate(message.candidate);
       return;
     }
