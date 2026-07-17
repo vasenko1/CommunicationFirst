@@ -105,7 +105,3 @@ button:disabled {
   opacity: 0.65;
   font-size: 0.9rem;
 }
-
-audio {
-  display: none;
-}
