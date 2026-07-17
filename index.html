@@ -28,7 +28,12 @@
     <p class="footer">MVP • Voice call</p>
   </main>
 
+  <section class="debug-panel" aria-label="Debug panel">
+    <div class="debug-panel__title">Live debug</div>
+    <pre id="debugLog">Waiting for events...</pre>
+  </section>
+
   <audio id="remoteAudio" autoplay playsinline></audio>
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
