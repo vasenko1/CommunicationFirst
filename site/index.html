@@ -7,25 +7,28 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <main class="card">
+    <h1>Communication First</h1>
 
-<main class="container">
+    <p class="status">
+      <span id="statusDot">🟢</span>
+      <span id="statusText">Ready</span>
+    </p>
 
-  <h1>Communication First</h1>
+    <button id="startCallBtn" type="button">Start Call</button>
 
-  <section class="status">
-    <span class="indicator">🟢</span>
-    <span id="statusText">Ready</span>
-  </section>
+    <section id="inviteBox" class="invite" hidden>
+      <label for="inviteUrl">Invite link</label>
+      <div class="invite-row">
+        <input id="inviteUrl" type="text" readonly>
+        <button id="copyInviteBtn" type="button">Copy</button>
+      </div>
+    </section>
 
-  <button id="startCallBtn">Start Call</button>
+    <p class="footer">MVP • Phase 3</p>
+  </main>
 
-  <footer>
-    MVP • Phase 1
-  </footer>
-
-</main>
-
-<script src="app.js"></script>
-
+  <audio id="remoteAudio" autoplay playsinline></audio>
+  <script src="app.js"></script>
 </body>
 </html>
