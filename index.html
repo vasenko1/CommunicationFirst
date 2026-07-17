@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Communication First</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="card">
+    <h1>Communication First</h1>
+
+    <p class="status">
+      <span id="statusDot">🟢</span>
+      <span id="statusText">Ready</span>
+    </p>
+
+    <button id="startCallBtn" type="button">Start Call</button>
+
+    <section id="inviteBox" class="invite" hidden>
+      <label for="inviteUrl">Invite link</label>
+      <div class="invite-row">
+        <input id="inviteUrl" type="text" readonly>
+        <button id="copyInviteBtn" type="button">Copy</button>
+      </div>
+    </section>
+
+    <p class="footer">MVP • Phase 3</p>
+  </main>
+
+  <audio id="remoteAudio" autoplay playsinline></audio>
+  <script src="app.js"></script>
+</body>
+</html>
