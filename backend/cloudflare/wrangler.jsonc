@@ -1,16 +1,11 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-
   "name": "communication-first",
-
   "main": "src/worker.js",
-
-  "compatibility_date": "2026-07-17",
-
+  "compatibility_date": "2025-09-06",
   "observability": {
     "enabled": true
   },
-
   "durable_objects": {
     "bindings": [
       {
@@ -19,7 +14,6 @@
       }
     ]
   },
-
   "migrations": [
     {
       "tag": "v1",
