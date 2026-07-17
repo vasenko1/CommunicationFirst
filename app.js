@@ -22,7 +22,7 @@ const App = {
     this.els.button.addEventListener("click", () => this.onMainAction());
     this.els.copyButton.addEventListener("click", () => this.copyInviteLink());
     window.addEventListener("hashchange", () => this.syncIdleUI());
-    window.addEventListener("beforeunload", () => this.endCall(false));
+    window.addEventListener("beforeunload", () => this.endCall(false, true));
 
     this.syncIdleUI();
     this.setStatus("Ready", "🟢");
@@ -32,6 +32,7 @@ const App = {
   syncIdleUI() {
     if (this.state.active) {
       this.els.button.textContent = "End Call";
+      this.els.button.disabled = false;
       return;
     }
 
@@ -75,7 +76,7 @@ const App = {
 
   async onMainAction() {
     if (this.state.active) {
-      this.endCall(true);
+      this.endCall(true, true);
       return;
     }
 
@@ -112,7 +113,7 @@ const App = {
       this.els.button.disabled = false;
     } catch (error) {
       console.error(error);
-      this.endCall(true);
+      this.endCall(true, false);
       this.setStatus("Call ended", "🔴");
     }
   },
@@ -138,7 +139,7 @@ const App = {
 
       ws.onclose = () => {
         if (!this.state.active) return;
-        this.endCall(true);
+        this.endCall(true, false);
         this.setStatus("Call ended", "🔴");
       };
     });
@@ -174,6 +175,7 @@ const App = {
         type: "peer-ready",
         peerId: this.state.peerId
       });
+      this.setStatus("Connected", "🟢");
       return;
     }
 
@@ -181,10 +183,23 @@ const App = {
       this.setStatus("Connected", "🟢");
       return;
     }
+
+    if (message.type === "leave") {
+      this.endCall(true, false);
+      this.setStatus("Ready", "🟢");
+      return;
+    }
   },
 
-  endCall(resetHash) {
+  endCall(resetHash, notifyPeer) {
     const ws = this.state.ws;
+    const peerId = this.state.peerId;
+
+    if (notifyPeer && ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: "leave", peerId }));
+      } catch {}
+    }
 
     this.state.active = false;
     this.state.host = false;
