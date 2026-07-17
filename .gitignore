@@ -17,3 +17,10 @@ node_modules/
 # Build
 dist/
 coverage/
+
+# Node.js
+node_modules/
+**/node_modules/
+
+# npm
+package-lock.json
