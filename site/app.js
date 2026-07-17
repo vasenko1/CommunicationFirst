@@ -158,19 +158,26 @@ const App = {
     }
 
     if (message.type === "join" && this.state.host) {
-      if (!this.state.peerJoined) {
-        this.state.peerJoined = true;
-        this.sendSignal({
-          type: "ack",
-          peerId: this.state.peerId
-        });
-      }
+      this.state.peerJoined = true;
       this.setStatus("Peer joined", "🟢");
+      this.sendSignal({
+        type: "peer-joined",
+        peerId: this.state.peerId
+      });
       return;
     }
 
-    if (message.type === "ack" && !this.state.host) {
+    if (message.type === "peer-joined" && !this.state.host) {
       this.state.peerJoined = true;
+      this.setStatus("Negotiating...", "🟡");
+      this.sendSignal({
+        type: "peer-ready",
+        peerId: this.state.peerId
+      });
+      return;
+    }
+
+    if (message.type === "peer-ready" && this.state.host) {
       this.setStatus("Connected", "🟢");
       return;
     }
