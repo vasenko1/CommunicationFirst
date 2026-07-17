@@ -165,18 +165,7 @@ const App = {
       });
     };
 
-
-    pc.oniceconnectionstatechange = () => {
-      console.log("ICE state:", pc.iceConnectionState);
-    };
-
-    pc.onicegatheringstatechange = () => {
-      console.log("ICE gathering:", pc.iceGatheringState);
-    };
-
     pc.onconnectionstatechange = () => {
-      console.log("Connection state:", pc.connectionState);
-
       if (!this.state.active) return;
 
       switch (pc.connectionState) {
@@ -217,9 +206,7 @@ const App = {
         reject(new Error("WebSocket failed"));
       };
 
-      ws.onclose = (event) => {
-        console.log("WebSocket closed", event.code, event.reason);
-
+      ws.onclose = () => {
         if (!this.state.active) return;
         this.endCall(true, false);
         this.setStatus("Call ended", "🔴");
