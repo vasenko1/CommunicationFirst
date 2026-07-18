@@ -306,6 +306,17 @@ class AppController {
       return;
     }
 
+    if (message.type === "join" && !this.state.host) {
+      this.state.peerJoined = true;
+      this.ui.setStatus("Соединение...", "🟡");
+
+      this.sendSignal({
+        type: "peer-ready",
+        peerId: this.state.peerId,
+      });
+      return;
+    }
+
     if (message.type === "peer-joined" && !this.state.host) {
       this.state.peerJoined = true;
       this.ui.setStatus("Соединение...", "🟡");
