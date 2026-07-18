@@ -1,4 +1,4 @@
-import { createInitialState, CALL_STATES } from "./state.js";
+import { createInitialState, CALL_STATES, END_REASONS } from "./state.js";
 import { AppUI } from "./ui.js";
 import { SignalingClient } from "./signaling.js";
 import { VoicePeer } from "./peer.js";
@@ -31,6 +31,14 @@ function fmtNumber(value) {
   return Number.isFinite(value) ? value.toFixed(3) : "n/a";
 }
 
+const END_STATUS = {
+  [END_REASONS.USER]: { text: "Разговор завершён", dot: "🟢" },
+  [END_REASONS.PEER]: { text: "Собеседник завершил разговор", dot: "🟢" },
+  [END_REASONS.NETWORK]: { text: "Соединение потеряно", dot: "🔴" },
+  [END_REASONS.ERROR]: { text: "Ошибка соединения", dot: "🔴" },
+  [END_REASONS.UNKNOWN]: { text: "Готово", dot: "🟢" },
+};
+
 class AppController {
   constructor() {
     this.state = createInitialState();
@@ -45,24 +53,25 @@ class AppController {
   init() {
     this.ui.button.addEventListener("click", () => this.onMainAction());
     this.ui.copyButton.addEventListener("click", () => this.onCopyInvite());
+    document.getElementById("copyDebugBtn")?.addEventListener("click", () => this.onCopyDebug());
     window.addEventListener("hashchange", () => this.syncIdleUI());
-    window.addEventListener("beforeunload", () => this.endCall(false, true));
+    window.addEventListener("beforeunload", () => this.endCall(false, true, END_REASONS.USER));
 
     this.syncIdleUI();
-    this.ui.setStatus("Ready", "🟢");
+    this.ui.setStatus("Готово", "🟢");
     this.ui.showInvite(false);
-    this.debug.log("App", "ready");
+    this.debug.log("Приложение", "готово");
   }
 
   syncIdleUI() {
     if (this.state.active) {
-      this.ui.setButtonText("End Call");
+      this.ui.setButtonText("Завершить");
       this.ui.setButtonDisabled(false);
       return;
     }
 
     this.ui.setButtonDisabled(false);
-    this.ui.setButtonText(this.roomIdFromHash() ? "Join Call" : "Start Call");
+    this.ui.setButtonText(this.roomIdFromHash() ? "Присоединиться" : "Позвонить");
   }
 
   roomIdFromHash() {
@@ -79,18 +88,30 @@ class AppController {
   async onCopyInvite() {
     try {
       await this.ui.copyInviteLink();
-      this.ui.setStatus("Invite link copied", "🟢");
-      this.debug.log("UI", "invite copied");
+      this.ui.setStatus("Ссылка скопирована", "🟢");
+      this.debug.log("Интерфейс", "ссылка приглашения скопирована");
     } catch (error) {
       console.error(error);
-      this.ui.setStatus("Copy failed", "🟠");
-      this.debug.log("UI", "copy failed");
+      this.ui.setStatus("Не удалось скопировать", "🟠");
+      this.debug.log("Интерфейс", "ошибка копирования ссылки");
+    }
+  }
+
+  async onCopyDebug() {
+    try {
+      await this.debug.copyToClipboard();
+      this.ui.setStatus("Журнал скопирован", "🟢");
+      this.debug.log("Интерфейс", "журнал скопирован");
+    } catch (error) {
+      console.error(error);
+      this.ui.setStatus("Не удалось скопировать журнал", "🟠");
+      this.debug.log("Интерфейс", "ошибка копирования журнала");
     }
   }
 
   async onMainAction() {
     if (this.state.active) {
-      this.endCall(true, true);
+      this.endCall(true, true, END_REASONS.USER);
       return;
     }
 
@@ -106,6 +127,7 @@ class AppController {
     this.state.peerJoined = false;
     this.state.offerSent = false;
     this.state.pendingCandidates = [];
+    this.state.endReason = END_REASONS.UNKNOWN;
 
     this.ui.setButtonDisabled(true);
 
@@ -113,12 +135,12 @@ class AppController {
       history.replaceState(null, "", `${location.pathname}#${roomId}`);
       this.ui.showInvite(true);
       this.ui.setInviteUrl(location.href);
-      this.ui.setStatus("Creating room...", "🟡");
-      this.debug.log("Call", `host room=${roomId}`);
+      this.ui.setStatus("Создание комнаты...", "🟡");
+      this.debug.log("Разговор", `хост room=${roomId}`);
     } else {
       this.ui.showInvite(false);
-      this.ui.setStatus("Joining room...", "🟡");
-      this.debug.log("Call", `guest room=${roomId}`);
+      this.ui.setStatus("Подключение...", "🟡");
+      this.debug.log("Разговор", `гость room=${roomId}`);
     }
 
     try {
@@ -131,19 +153,18 @@ class AppController {
         role: this.state.host ? "host" : "guest"
       });
 
-      this.ui.setButtonText("End Call");
+      this.ui.setButtonText("Завершить");
       this.ui.setButtonDisabled(false);
     } catch (error) {
       console.error(error);
-      this.debug.log("Error", String(error?.message || error));
-      this.endCall(true, false);
-      this.ui.setStatus("Call ended", "🔴");
+      this.debug.log("Ошибка", String(error?.message || error));
+      this.endCall(true, false, END_REASONS.ERROR);
     }
   }
 
   async preparePeer() {
-    this.ui.setStatus("Requesting microphone...", "🟡");
-    this.debug.log("Media", "requesting microphone");
+    this.ui.setStatus("Запрос микрофона...", "🟡");
+    this.debug.log("Микрофон", "запрос");
 
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error("getUserMedia is not available");
@@ -167,7 +188,7 @@ class AppController {
       const stream = event.detail;
       if (!stream) return;
       this.ui.attachRemoteStream(stream);
-      this.debug.log("Peer", "remote track attached");
+      this.debug.log("Peer", "удалённый звук подключён");
     });
 
     this.peer.addEventListener("candidate", (event) => {
@@ -189,23 +210,22 @@ class AppController {
         case "new":
         case "connecting":
           this.state.callState = CALL_STATES.NEGOTIATING;
-          this.ui.setStatus("Negotiating...", "🟡");
+          this.ui.setStatus("Соединение...", "🟡");
           break;
         case "connected":
           this.state.callState = CALL_STATES.CONNECTED;
-          this.ui.setStatus("Connected", "🟢");
+          this.ui.setStatus("Разговор", "🟢");
           this.startStatsPolling();
           break;
         case "disconnected":
           this.state.callState = CALL_STATES.RECONNECTING;
-          this.ui.setStatus("Reconnecting...", "🟡");
+          this.ui.setStatus("Повторное соединение...", "🟡");
           break;
         case "failed":
         case "closed":
           this.state.callState = CALL_STATES.ENDED;
           this.stopStatsPolling();
-          this.endCall(true, false);
-          this.ui.setStatus("Call ended", "🔴");
+          this.endCall(false, false, END_REASONS.NETWORK);
           break;
       }
     });
@@ -218,8 +238,8 @@ class AppController {
       this.debug.log("ICE gather", event.detail);
     });
 
-    this.ui.setStatus("Microphone ready", "🟢");
-    this.debug.log("Media", "microphone ready");
+    this.ui.setStatus("Микрофон готов", "🟢");
+    this.debug.log("Микрофон", "готов");
   }
 
   async connectSignaling() {
@@ -228,14 +248,14 @@ class AppController {
 
     this.signaling.addEventListener("open", () => {
       this.debug.log("WS", "open");
-      this.ui.setStatus(this.state.host ? "Waiting for peer..." : "Joining room...", "🟡");
+      this.ui.setStatus(this.state.host ? "Ожидание собеседника..." : "Подключение...", "🟡");
       this.state.callState = CALL_STATES.WAITING_FOR_PEER;
     });
 
     this.signaling.addEventListener("message", (event) => {
       this.onSignal(event.detail).catch((error) => {
         console.error(error);
-        this.debug.log("Signal error", String(error?.message || error));
+        this.debug.log("Ошибка сигнала", String(error?.message || error));
       });
     });
 
@@ -244,7 +264,8 @@ class AppController {
 
       if (!this.state.active) return;
 
-      this.ui.setStatus("Signaling lost", "🟠");
+      this.stopStatsPolling();
+      this.endCall(false, false, END_REASONS.NETWORK);
     });
 
     this.signaling.addEventListener("error", () => {
@@ -272,7 +293,7 @@ class AppController {
 
     if (message.type === "join" && this.state.host) {
       this.state.peerJoined = true;
-      this.ui.setStatus("Peer joined", "🟢");
+      this.ui.setStatus("Собеседник подключился", "🟢");
 
       this.sendSignal({
         type: "peer-joined",
@@ -280,20 +301,14 @@ class AppController {
       });
 
       if (!this.state.offerSent) {
-        this.state.offerSent = true;
-        this.ui.setStatus("Negotiating...", "🟡");
-        const offer = await this.peer.createOffer();
-        this.sendSignal({
-          type: "offer",
-          description: offer
-        });
+        await this.createAndSendOffer();
       }
       return;
     }
 
     if (message.type === "peer-joined" && !this.state.host) {
       this.state.peerJoined = true;
-      this.ui.setStatus("Negotiating...", "🟡");
+      this.ui.setStatus("Соединение...", "🟡");
 
       this.sendSignal({
         type: "peer-ready",
@@ -303,7 +318,10 @@ class AppController {
     }
 
     if (message.type === "peer-ready" && this.state.host) {
-      this.ui.setStatus("Negotiating...", "🟡");
+      this.ui.setStatus("Соединение...", "🟡");
+      if (!this.state.offerSent) {
+        await this.createAndSendOffer();
+      }
       return;
     }
 
@@ -319,6 +337,7 @@ class AppController {
 
     if (message.type === "answer" && this.state.host) {
       await this.peer.setRemoteDescription(message.description);
+      this.ui.setStatus("Разговор", "🟢");
       return;
     }
 
@@ -329,11 +348,23 @@ class AppController {
     }
 
     if (message.type === "leave") {
-      this.debug.log("Call", "peer left");
+      this.debug.log("Разговор", "собеседник завершил разговор");
       this.stopStatsPolling();
-      this.endCall(true, false);
-      this.ui.setStatus("Ready", "🟢");
+      this.endCall(false, false, END_REASONS.PEER);
     }
+  }
+
+  async createAndSendOffer() {
+    if (!this.state.pc || this.state.offerSent) return;
+
+    this.state.offerSent = true;
+    this.ui.setStatus("Соединение...", "🟡");
+
+    const offer = await this.peer.createOffer();
+    this.sendSignal({
+      type: "offer",
+      description: offer
+    });
   }
 
   async updateStats() {
@@ -343,7 +374,6 @@ class AppController {
       const stats = await this.state.pc.getStats();
       const localCandidates = new Map();
       const remoteCandidates = new Map();
-
       let selectedPair = null;
 
       stats.forEach((report) => {
@@ -384,7 +414,7 @@ class AppController {
     if (this.statsTimer) return;
 
     this.statsTimer = setInterval(() => {
-      this.updateStats();
+      void this.updateStats();
     }, 1000);
 
     void this.updateStats();
@@ -398,22 +428,7 @@ class AppController {
     this.debug.log("Stats", "polling stopped");
   }
 
-  async createAndSendOffer() {
-    if (!this.state.pc || this.state.offerSent) return;
-
-    this.state.offerSent = true;
-    this.ui.setStatus("Negotiating...", "🟡");
-
-    const offer = await this.state.pc.createOffer();
-    await this.state.pc.setLocalDescription(offer);
-
-    this.sendSignal({
-      type: "offer",
-      description: this.state.pc.localDescription
-    });
-  }
-
-  endCall(resetHash, notifyPeer) {
+  endCall(resetHash, notifyPeer, reason = END_REASONS.UNKNOWN) {
     const ws = this.signaling;
     const peer = this.peer;
     const peerId = this.state.peerId;
@@ -430,7 +445,11 @@ class AppController {
       } catch {}
     }
 
-    this.state = createInitialState();
+    this.state.endReason = reason;
+    this.state = {
+      ...createInitialState(),
+      endReason: reason,
+    };
     this.signaling = null;
     this.peer = null;
 
@@ -453,6 +472,9 @@ class AppController {
 
     this.ui.showInvite(false);
     this.syncIdleUI();
+
+    const ended = END_STATUS[reason] || END_STATUS[END_REASONS.UNKNOWN];
+    this.ui.setStatus(ended.text, ended.dot);
   }
 }
 
