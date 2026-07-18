@@ -10,6 +10,14 @@ export const CALL_STATES = Object.freeze({
   ENDED: "ended",
 });
 
+export const END_REASONS = Object.freeze({
+  USER: "user",
+  PEER: "peer",
+  NETWORK: "network",
+  ERROR: "error",
+  UNKNOWN: "unknown",
+});
+
 export function createInitialState() {
   return {
     callState: CALL_STATES.IDLE,
@@ -23,5 +31,6 @@ export function createInitialState() {
     pendingCandidates: [],
     offerSent: false,
     peerJoined: false,
+    endReason: END_REASONS.UNKNOWN,
   };
 }

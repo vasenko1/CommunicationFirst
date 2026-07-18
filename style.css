@@ -33,7 +33,7 @@ body {
 
 h1 {
   margin: 0 0 22px;
-  font-size: 2rem;
+  font-size: clamp(1.35rem, 4vw, 1.8rem);
   line-height: 1.1;
 }
 
@@ -80,7 +80,7 @@ button:disabled {
 
 .invite-row {
   display: grid;
-  grid-template-columns: 1fr 88px;
+  grid-template-columns: 1fr 110px;
   gap: 8px;
 }
 
@@ -119,12 +119,36 @@ button:disabled {
   backdrop-filter: blur(10px);
 }
 
-.debug-panel__title {
+.debug-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 8px;
+}
+
+.debug-panel__title {
   font-size: 0.85rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   opacity: 0.7;
+}
+
+.debug-panel__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.debug-btn {
+  width: auto;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.9);
+}
+
+.debug-btn:hover {
+  background: rgba(29, 78, 216, 0.95);
 }
 
 #debugLog {
@@ -141,4 +165,33 @@ button:disabled {
 
 audio {
   display: none;
+}
+
+@media (max-width: 720px) {
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 520px;
+    padding: 20px;
+  }
+
+  .debug-panel {
+    position: static;
+    width: 100%;
+    max-width: 520px;
+    right: auto;
+    bottom: auto;
+  }
+
+  .invite-row {
+    grid-template-columns: 1fr 92px;
+  }
 }
