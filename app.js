@@ -208,7 +208,6 @@ class AppController {
           break;
         case "connected":
           this.state.callState = CALL_STATES.CONNECTED;
-          this.stopReconnectWatch();
           this.ui.setStatus("Разговор", "🟢");
           this.startStatsPolling();
           break;
@@ -218,8 +217,7 @@ class AppController {
           this.stopStatsPolling();
           this.state.offerSent = false;
           this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-          this.startReconnectWatch();
-            if ((state === "disconnected" || state === "failed") && this.state.host) {
+            if (this.state.host) {
                 this.debug.log("Recovery", "starting ICE restart");
                 void this.createAndSendOffer({ iceRestart: true });
             }
@@ -228,7 +226,6 @@ class AppController {
           this.state.callState = CALL_STATES.RECONNECTING;
           this.state.offerSent = false;
           this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-          this.startReconnectWatch();
           break;
         }
     });
