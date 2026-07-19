@@ -53,8 +53,8 @@ export class VoicePeer extends EventTarget {
     };
   }
 
-  async createOffer() {
-    const offer = await this.pc.createOffer();
+  async createOffer(options = {}) {
+    const offer = await this.pc.createOffer(options);
     await this.pc.setLocalDescription(offer);
     return this.pc.localDescription;
   }
