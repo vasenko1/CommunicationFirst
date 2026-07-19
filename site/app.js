@@ -147,12 +147,6 @@ class AppController {
       await this.preparePeer();
       await this.connectSignaling();
 
-      this.sendSignal({
-        type: "join",
-        peerId: this.state.peerId,
-        role: this.state.host ? "host" : "guest"
-      });
-
       this.ui.setButtonText("Завершить");
       this.ui.setButtonDisabled(false);
     } catch (error) {
@@ -271,12 +265,6 @@ class AppController {
                 peerId: this.state.peerId,
                 role: this.state.host ? "host" : "guest"
             });
-
-            if (reconnect && this.state.host) {
-                this.debug.log("Recovery", "starting ICE restart");
-                this.state.offerSent = false;
-                void this.createAndSendOffer({ iceRestart: true });
-            }
         });
     
         this.signaling.addEventListener("statechange", (event) => {
@@ -344,10 +332,7 @@ class AppController {
         type: "peer-joined",
         peerId: this.state.peerId
       });
-
-      if (!this.state.offerSent) {
-        await this.createAndSendOffer();
-      }
+      
       return;
     }
 
@@ -373,13 +358,22 @@ class AppController {
       return;
     }
 
-    if (message.type === "peer-ready" && this.state.host) {
-      this.ui.setStatus("Соединение...", "🟡");
-      if (!this.state.offerSent) {
-        await this.createAndSendOffer();
+      if (message.type === "peer-ready" && this.state.host) {
+          this.ui.setStatus("Соединение...", "🟡");
+
+          if (!this.state.offerSent) {
+              const iceRestart =
+                  this.state.callState === CALL_STATES.RECONNECTING;
+
+              if (iceRestart) {
+                  this.debug.log("Recovery", "starting ICE restart");
+              }
+
+              await this.createAndSendOffer({ iceRestart });
+          }
+
+          return;
       }
-      return;
-    }
 
     if (message.type === "offer" && !this.state.host) {
       await this.peer.setRemoteDescription(message.description);
