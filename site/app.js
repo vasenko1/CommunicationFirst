@@ -216,15 +216,17 @@ class AppController {
         case "failed":
           this.state.callState = CALL_STATES.RECONNECTING;
           this.stopStatsPolling();
+          this.state.offerSent = false;
           this.ui.setStatus("Восстанавливаем соединение...", "🟠");
           this.startReconnectWatch();
           break;
         case "closed":
           this.state.callState = CALL_STATES.RECONNECTING;
+          this.state.offerSent = false;
           this.ui.setStatus("Восстанавливаем соединение...", "🟠");
           this.startReconnectWatch();
           break;
-      }
+        }
     });
 
     this.peer.addEventListener("iceconnectionstatechange", (event) => {
