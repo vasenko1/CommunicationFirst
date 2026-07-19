@@ -271,6 +271,12 @@ class AppController {
                 peerId: this.state.peerId,
                 role: this.state.host ? "host" : "guest"
             });
+
+            if (reconnect && this.state.host) {
+                this.debug.log("Recovery", "starting ICE restart");
+                this.state.offerSent = false;
+                void this.createAndSendOffer({ iceRestart: true });
+            }
         });
     
         this.signaling.addEventListener("statechange", (event) => {
@@ -404,18 +410,21 @@ class AppController {
     }
   }
 
-  async createAndSendOffer() {
-    if (!this.state.pc || this.state.offerSent) return;
+    async createAndSendOffer({ iceRestart = false } = {}) {
+        if (!this.state.pc || this.state.offerSent) return;
 
-    this.state.offerSent = true;
-    this.ui.setStatus("Соединение...", "🟡");
+        this.state.offerSent = true;
+        this.ui.setStatus("Соединение...", "🟡");
 
-    const offer = await this.peer.createOffer();
-    this.sendSignal({
-      type: "offer",
-      description: offer
-    });
-  }
+        const offer = await this.peer.createOffer({
+            iceRestart
+        });
+
+        this.sendSignal({
+            type: "offer",
+            description: offer
+        });
+    }
 
   async updateStats() {
     if (!this.state.active || !this.state.pc) return;
