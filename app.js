@@ -214,18 +214,21 @@ class AppController {
           break;
         case "connected":
           this.state.callState = CALL_STATES.CONNECTED;
+          this.stopReconnectWatch();
           this.ui.setStatus("Разговор", "🟢");
           this.startStatsPolling();
           break;
         case "disconnected":
-          this.state.callState = CALL_STATES.RECONNECTING;
-          this.ui.setStatus("Повторное соединение...", "🟡");
-          break;
         case "failed":
-        case "closed":
-          this.state.callState = CALL_STATES.ENDED;
+          this.state.callState = CALL_STATES.RECONNECTING;
           this.stopStatsPolling();
-          this.endCall(false, false, END_REASONS.NETWORK);
+          this.ui.setStatus("Восстанавливаем соединение...", "🟠");
+          this.startReconnectWatch();
+          break;
+        case "closed":
+          this.state.callState = CALL_STATES.RECONNECTING;
+          this.ui.setStatus("Восстанавливаем соединение...", "🟠");
+          this.startReconnectWatch();
           break;
       }
     });
