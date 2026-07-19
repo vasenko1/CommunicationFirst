@@ -245,13 +245,13 @@ class AppController {
     async connectSignaling() {
         this.state.callState = CALL_STATES.CONNECTING_SIGNALING;
         this.signaling = new SignalingClient(SIGNALING_BASE);
-    
+
         this.signaling.addEventListener("connected", (event) => {
             const reconnect = Boolean(event.detail?.reconnect);
             this.debug.log("WS", reconnect ? "reconnected" : "open");
-    
+
             if (!this.state.active) return;
-    
+
             if (reconnect) {
                 this.state.callState = CALL_STATES.RECONNECTING;
                 this.ui.setStatus("Восстанавливаем служебный канал...", "🟠");
@@ -262,6 +262,12 @@ class AppController {
                     "🟡"
                 );
             }
+
+            this.sendSignal({
+                type: "join",
+                peerId: this.state.peerId,
+                role: this.state.host ? "host" : "guest"
+            });
         });
     
         this.signaling.addEventListener("statechange", (event) => {
