@@ -219,6 +219,10 @@ class AppController {
           this.state.offerSent = false;
           this.ui.setStatus("Восстанавливаем соединение...", "🟠");
           this.startReconnectWatch();
+            if ((state === "disconnected" || state === "failed") && this.state.host) {
+                this.debug.log("Recovery", "starting ICE restart");
+                void this.createAndSendOffer({ iceRestart: true });
+            }
           break;
         case "closed":
           this.state.callState = CALL_STATES.RECONNECTING;
