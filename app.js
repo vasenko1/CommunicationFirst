@@ -242,38 +242,68 @@ class AppController {
     this.debug.log("Микрофон", "готов");
   }
 
-  async connectSignaling() {
-    this.state.callState = CALL_STATES.CONNECTING_SIGNALING;
-    this.signaling = new SignalingClient(SIGNALING_BASE);
-
-    this.signaling.addEventListener("open", () => {
-      this.debug.log("WS", "open");
-      this.ui.setStatus(this.state.host ? "Ожидание собеседника..." : "Подключение...", "🟡");
-      this.state.callState = CALL_STATES.WAITING_FOR_PEER;
-    });
-
-    this.signaling.addEventListener("message", (event) => {
-      this.onSignal(event.detail).catch((error) => {
-        console.error(error);
-        this.debug.log("Ошибка сигнала", String(error?.message || error));
-      });
-    });
-
-    this.signaling.addEventListener("close", (event) => {
-      this.debug.log("WS", `close ${event.detail.code} ${event.detail.reason || ""}`.trim());
-
-      if (!this.state.active) return;
-
-      this.stopStatsPolling();
-      this.endCall(false, false, END_REASONS.NETWORK);
-    });
-
-    this.signaling.addEventListener("error", () => {
-      this.debug.log("WS", "error");
-    });
-
-    await this.signaling.connect(this.state.roomId, this.state.peerId);
-  }
+    async connectSignaling() {
+        this.state.callState = CALL_STATES.CONNECTING_SIGNALING;
+        this.signaling = new SignalingClient(SIGNALING_BASE);
+    
+        this.signaling.addEventListener("connected", (event) => {
+            const reconnect = Boolean(event.detail?.reconnect);
+            this.debug.log("WS", reconnect ? "reconnected" : "open");
+    
+            if (!this.state.active) return;
+    
+            if (reconnect) {
+                this.state.callState = CALL_STATES.RECONNECTING;
+                this.ui.setStatus("Восстанавливаем служебный канал...", "🟠");
+            } else {
+                this.state.callState = CALL_STATES.WAITING_FOR_PEER;
+                this.ui.setStatus(
+                    this.state.host ? "Ожидание собеседника..." : "Подключение...",
+                    "🟡"
+                );
+            }
+        });
+    
+        this.signaling.addEventListener("statechange", (event) => {
+            const state = event.detail?.state;
+            if (!state) return;
+    
+            this.debug.log("WS state", state);
+    
+            if (!this.state.active) return;
+    
+            if (state === "reconnecting") {
+                this.state.callState = CALL_STATES.RECONNECTING;
+                this.ui.setStatus("Восстанавливаем служебный канал...", "🟠");
+            }
+        });
+    
+        this.signaling.addEventListener("message", (event) => {
+            this.onSignal(event.detail).catch((error) => {
+                console.error(error);
+                this.debug.log("Ошибка сигнала", String(error?.message || error));
+            });
+        });
+    
+        this.signaling.addEventListener("close", (event) => {
+            this.debug.log(
+                "WS",
+                `close ${event.detail.code} ${event.detail.reason || ""}`.trim()
+            );
+        });
+    
+        this.signaling.addEventListener("failed", () => {
+            this.debug.log("WS", "failed");
+            if (!this.state.active) return;
+            this.endCall(false, false, END_REASONS.NETWORK);
+        });
+    
+        this.signaling.addEventListener("error", () => {
+            this.debug.log("WS", "error");
+        });
+    
+        await this.signaling.connect(this.state.roomId, this.state.peerId);
+    }
 
   sendSignal(payload) {
     if (!this.signaling) return;
