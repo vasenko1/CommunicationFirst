@@ -49,6 +49,7 @@ class AppController {
     this.signaling = null;
     this.peer = null;
     this.statsTimer = null;
+    this.transportConnected = false;
     this.init();
   }
 
@@ -220,7 +221,7 @@ class AppController {
           this.stopStatsPolling();
           this.state.offerSent = false;
           this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-            const action = this.recovery.onPeerState(state);
+            const action = this.recovery.onPeerState({ peerState: state, transportConnected: this.transportConnected });
 
             if (action === RECOVERY_ACTIONS.START_ICE_RESTART && this.state.host && !this.state.iceRestarting) {
                 this.state.iceRestarting = true;
@@ -255,6 +256,7 @@ class AppController {
         this.signaling.addEventListener("connected", (event) => {
             const reconnect = Boolean(event.detail?.reconnect);
             this.debug.log("WS", reconnect ? "reconnected" : "open");
+            this.transportConnected = true;
 
             if (!this.state.active) return;
 
@@ -285,6 +287,7 @@ class AppController {
             if (!this.state.active) return;
     
             if (state === "reconnecting") {
+                this.transportConnected = false;
                 this.state.callState = CALL_STATES.RECONNECTING;
                 this.ui.setStatus("Восстанавливаем служебный канал...", "🟠");
             }
@@ -298,6 +301,7 @@ class AppController {
         });
     
         this.signaling.addEventListener("close", (event) => {
+            this.transportConnected = false;
             this.debug.log(
                 "WS",
                 `close ${event.detail.code} ${event.detail.reason || ""}`.trim()
@@ -305,6 +309,7 @@ class AppController {
         });
     
         this.signaling.addEventListener("failed", () => {
+            this.transportConnected = false;
             this.debug.log("WS", "failed");
             if (!this.state.active) return;
             this.endCall(false, false, END_REASONS.NETWORK);
@@ -371,7 +376,7 @@ class AppController {
           this.ui.setStatus("Соединение...", "🟡");
 
           if (!this.state.offerSent) {
-              const action = this.recovery.onPeerReady(this.state.callState);
+              const action = this.recovery.onPeerReady({ callState: this.state.callState, transportConnected: this.transportConnected });
               const iceRestart =
                   action === RECOVERY_ACTIONS.START_ICE_RESTART;
 
@@ -525,6 +530,7 @@ class AppController {
       ...createInitialState(),
       endReason: reason,
     };
+    this.transportConnected = false;
     this.signaling = null;
     this.peer = null;
 
