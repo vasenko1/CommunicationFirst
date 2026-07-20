@@ -390,15 +390,23 @@ class AppController {
           return;
       }
 
-    if (message.type === "offer" && !this.state.host) {
-      await this.peer.setRemoteDescription(message.description);
-      const answer = await this.peer.createAnswer();
-      this.sendSignal({
-        type: "answer",
-        description: answer
-      });
-      return;
-    }
+      if (message.type === "offer" && !this.state.host) {
+          this.debug.log(
+              "Recovery",
+              this.state.callState === CALL_STATES.RECONNECTING
+                  ? "RX restart offer"
+                  : "RX offer"
+          );
+
+          await this.peer.setRemoteDescription(message.description);
+
+          const answer = await this.peer.createAnswer();
+          this.sendSignal({
+              type: "answer",
+              description: answer
+          });
+          return;
+      }
 
       if (message.type === "answer" && this.state.host) {
           this.debug.log("Recovery", "RX answer");
