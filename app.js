@@ -50,6 +50,12 @@ class AppController {
     this.peer = null;
     this.statsTimer = null;
     this.transportConnected = false;
+    this.reconnectTimer = null;
+    this.recoveryAttempts = 0;
+    this.maxRecoveryAttempts = 3;
+    this.recoveryStartAt = null;
+    this.recoveryWaitTimer = null;
+    this.maxRecoveryWaitMs = 30000;
     this.init();
   }
 
@@ -197,45 +203,72 @@ class AppController {
       });
     });
 
-    this.peer.addEventListener("connectionstatechange", (event) => {
-      const state = event.detail;
-      this.debug.log("PC", state);
+      this.peer.addEventListener("connectionstatechange", (event) => {
+          const state = event.detail;
+          this.debug.log("PC", state);
 
-      if (!this.state.active) return;
+          if (!this.state.active) return;
 
-      switch (state) {
-        case "new":
-        case "connecting":
-          this.state.callState = CALL_STATES.NEGOTIATING;
-          this.ui.setStatus("Соединение...", "🟡");
-          break;
-        case "connected":
-          this.state.callState = CALL_STATES.CONNECTED;
-          this.state.iceRestarting = false;
-          this.ui.setStatus("Разговор", "🟢");
-          this.startStatsPolling();
-          break;
-        case "disconnected":
-        case "failed":
-          this.state.callState = CALL_STATES.RECONNECTING;
-          this.stopStatsPolling();
-          this.state.offerSent = false;
-          this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-            const action = this.recovery.onPeerState({ peerState: state, transportConnected: this.transportConnected });
+          switch (state) {
+              case "new":
+              case "connecting":
+                  this.state.callState = CALL_STATES.NEGOTIATING;
+                  this.ui.setStatus("Соединение...", "🟡");
+                  break;
 
-            if (action === RECOVERY_ACTIONS.START_ICE_RESTART && this.state.host && !this.state.iceRestarting) {
-                this.state.iceRestarting = true;
-                this.debug.log("Recovery", "starting ICE restart");
-                void this.createAndSendOffer({ iceRestart: true });
-            }
-          break;
-        case "closed":
-          this.state.callState = CALL_STATES.RECONNECTING;
-          this.state.offerSent = false;
-          this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-          break;
-        }
-    });
+              case "connected":
+                  this.state.callState = CALL_STATES.CONNECTED;
+                  this.state.iceRestarting = false;
+                  this.recoveryAttempts = 0;
+
+                  this.recoveryStartAt = null;
+                  if (this.recoveryWaitTimer) {
+                      clearTimeout(this.recoveryWaitTimer);
+                      this.recoveryWaitTimer = null;
+                  }
+
+                  this.stopStatsPolling();
+                  this.ui.setStatus("Разговор", "🟢");
+                  this.startStatsPolling();
+                  break;
+
+              case "disconnected":
+                  this.state.callState = CALL_STATES.RECONNECTING;
+                  if (!this.recoveryStartAt) {
+                      this.recoveryStartAt = Date.now();
+                  }
+                  if (!this.reconnectTimer) {
+                      this.reconnectTimer = setTimeout(() => {
+                          this.reconnectTimer = null;
+                          this.attemptIceRecovery();
+                      }, 2000);
+                  }
+                  break;
+
+              case "failed":
+                  this.state.callState = CALL_STATES.RECONNECTING;
+                  if (this.reconnectTimer) {
+                      clearTimeout(this.reconnectTimer);
+                      this.reconnectTimer = null;
+                  }
+                  this.stopStatsPolling();
+                  this.ui.setStatus("Восстанавливаем соединение...", "🟠");
+                  this.state.offerSent = false;
+                  this.state.iceRestarting = false;
+                  this.attemptIceRecovery();
+                  break;
+
+              case "closed":
+                  this.state.callState = CALL_STATES.RECONNECTING;
+                  if (this.reconnectTimer) {
+                      clearTimeout(this.reconnectTimer);
+                      this.reconnectTimer = null;
+                  }
+                  this.stopStatsPolling();
+                  this.endCall(false, false, END_REASONS.NETWORK);
+                  break;
+          }
+      });
 
     this.peer.addEventListener("iceconnectionstatechange", (event) => {
       this.debug.log("ICE", event.detail);
@@ -398,13 +431,36 @@ class AppController {
                   : "RX offer"
           );
 
-          await this.peer.setRemoteDescription(message.description);
+          try {
+              await this.peer.setRemoteDescription(message.description);
 
-          const answer = await this.peer.createAnswer();
-          this.sendSignal({
-              type: "answer",
-              description: answer
-          });
+              this.debug.log(
+                  "Recovery",
+                  this.state.callState === CALL_STATES.RECONNECTING
+                      ? "Restart offer applied"
+                      : "Offer applied"
+              );
+
+              const answer = await this.peer.createAnswer();
+
+              this.debug.log(
+                  "Recovery",
+                  this.state.callState === CALL_STATES.RECONNECTING
+                      ? "TX restart answer"
+                      : "TX answer"
+              );
+
+              this.sendSignal({
+                  type: "answer",
+                  description: answer
+              });
+          } catch (error) {
+              this.state.offerSent = false;
+              this.state.iceRestarting = false;
+              this.debug.log("Recovery ERROR", String(error?.message || error));
+              throw error;
+          }
+
           return;
       }
 
@@ -413,12 +469,11 @@ class AppController {
 
           try {
               await this.peer.setRemoteDescription(message.description);
-              this.debug.log("Recovery", "answer applied");
+              this.debug.log("Recovery", "Answer applied");
           } catch (error) {
-              this.debug.log(
-                  "Recovery ERROR",
-                  String(error?.message || error)
-              );
+              this.state.offerSent = false;
+              this.state.iceRestarting = false;
+              this.debug.log("Recovery ERROR", String(error?.message || error));
               throw error;
           }
 
@@ -445,13 +500,78 @@ class AppController {
         this.state.offerSent = true;
         this.ui.setStatus("Соединение...", "🟡");
 
-        const offer = await this.peer.createOffer({
-            iceRestart
-        });
+        try {
+            const offer = await this.peer.createOffer({ iceRestart });
 
-        this.sendSignal({
-            type: "offer",
-            description: offer
+            this.sendSignal({
+                type: "offer",
+                description: offer
+            });
+        } catch (error) {
+            this.state.offerSent = false;
+            throw error;
+        }
+    }
+
+    attemptIceRecovery() {
+        if (!this.state.active || !this.state.host) {
+            return;
+        }
+
+        if (!this.transportConnected) {
+            if (!this.recoveryStartAt) {
+                this.recoveryStartAt = Date.now();
+            }
+
+            if (Date.now() - this.recoveryStartAt >= this.maxRecoveryWaitMs) {
+                this.debug.log("Recovery", "giving up");
+                this.endCall(false, false, END_REASONS.NETWORK);
+                return;
+            }
+
+            if (!this.recoveryWaitTimer) {
+                this.recoveryWaitTimer = setTimeout(() => {
+                    this.recoveryWaitTimer = null;
+                    this.attemptIceRecovery();
+                }, 2000);
+            }
+
+            return;
+        }
+
+        if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+            this.debug.log("Recovery", "giving up");
+            this.endCall(false, false, END_REASONS.NETWORK);
+            return;
+        }
+
+        if (this.state.iceRestarting) return;
+
+        this.stopStatsPolling();
+        this.ui.setStatus("Восстанавливаем соединение...", "🟠");
+        this.state.offerSent = false;
+        this.state.iceRestarting = true;
+        this.recoveryAttempts += 1;
+
+        this.debug.log("Recovery", `starting ICE restart #${this.recoveryAttempts}`);
+
+        void this.createAndSendOffer({ iceRestart: true }).catch((error) => {
+            this.state.offerSent = false;
+            this.state.iceRestarting = false;
+            this.debug.log("Recovery ERROR", String(error?.message || error));
+
+            if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+                this.debug.log("Recovery", "giving up");
+                this.endCall(false, false, END_REASONS.NETWORK);
+                return;
+            }
+
+            if (!this.reconnectTimer) {
+                this.reconnectTimer = setTimeout(() => {
+                    this.reconnectTimer = null;
+                    this.attemptIceRecovery();
+                }, 2000);
+            }
         });
     }
 
@@ -521,6 +641,12 @@ class AppController {
     const peer = this.peer;
     const peerId = this.state.peerId;
 
+      this.recoveryStartAt = null;
+      if (this.recoveryWaitTimer) {
+          clearTimeout(this.recoveryWaitTimer);
+          this.recoveryWaitTimer = null;
+      }
+
     this.stopStatsPolling();
 
     if (notifyPeer && ws) {
@@ -539,6 +665,12 @@ class AppController {
       endReason: reason,
     };
     this.transportConnected = false;
+      this.recoveryAttempts = 0;
+      this.state.iceRestarting = false;
+      if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+      }
     this.signaling = null;
     this.peer = null;
 
