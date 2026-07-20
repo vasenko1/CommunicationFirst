@@ -395,11 +395,23 @@ class AppController {
       return;
     }
 
-    if (message.type === "answer" && this.state.host) {
-      await this.peer.setRemoteDescription(message.description);
-      this.ui.setStatus("Разговор", "🟢");
-      return;
-    }
+      if (message.type === "answer" && this.state.host) {
+          this.debug.log("Recovery", "RX answer");
+
+          try {
+              await this.peer.setRemoteDescription(message.description);
+              this.debug.log("Recovery", "answer applied");
+          } catch (error) {
+              this.debug.log(
+                  "Recovery ERROR",
+                  String(error?.message || error)
+              );
+              throw error;
+          }
+
+          this.ui.setStatus("Разговор", "🟢");
+          return;
+      }
 
     if (message.type === "candidate") {
       this.debug.log("RX candidate", describeCandidate(message.candidate));
