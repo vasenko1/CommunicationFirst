@@ -3,6 +3,7 @@ import { AppUI } from "./ui.js";
 import { SignalingClient } from "./signaling.js";
 import { VoicePeer } from "./peer.js";
 import { DebugPanel } from "./debug.js";
+import { RecoveryController, RECOVERY_ACTIONS } from "./recovery.js";
 
 const SIGNALING_BASE = "wss://communication-first.communication-first-igor.workers.dev";
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -44,6 +45,7 @@ class AppController {
     this.state = createInitialState();
     this.ui = new AppUI();
     this.debug = new DebugPanel(document.getElementById("debugLog"));
+    this.recovery = new RecoveryController();
     this.signaling = null;
     this.peer = null;
     this.statsTimer = null;
@@ -218,7 +220,9 @@ class AppController {
           this.stopStatsPolling();
           this.state.offerSent = false;
           this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-            if (this.state.host && !this.state.iceRestarting) {
+            const action = this.recovery.onPeerState(state);
+
+            if (action === RECOVERY_ACTIONS.START_ICE_RESTART && this.state.host && !this.state.iceRestarting) {
                 this.state.iceRestarting = true;
                 this.debug.log("Recovery", "starting ICE restart");
                 void this.createAndSendOffer({ iceRestart: true });
@@ -367,8 +371,9 @@ class AppController {
           this.ui.setStatus("Соединение...", "🟡");
 
           if (!this.state.offerSent) {
+              const action = this.recovery.onPeerReady(this.state.callState);
               const iceRestart =
-                  this.state.callState === CALL_STATES.RECONNECTING;
+                  action === RECOVERY_ACTIONS.START_ICE_RESTART;
 
               if (iceRestart) {
                   this.debug.log("Recovery", "starting ICE restart");
