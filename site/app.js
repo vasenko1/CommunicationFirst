@@ -285,6 +285,28 @@ class AppController {
     async connectSignaling() {
         this.state.callState = CALL_STATES.CONNECTING_SIGNALING;
         this.signaling = new SignalingClient(SIGNALING_BASE);
+        this.signaling.addEventListener("trace", (event) => {
+            const d = event.detail || {};
+
+            if (d.kind === "recv") {
+                this.debug.log("WS RECV", d.raw);
+                return;
+            }
+
+            if (d.kind === "send-ok") {
+                this.debug.log("WS SEND OK", `${d.type} ${d.size}`);
+                return;
+            }
+
+            if (d.kind === "send-failed") {
+                this.debug.log("WS SEND FAILED", `${d.type} ${d.reason}`);
+                return;
+            }
+
+            if (d.kind === "send-error") {
+                this.debug.log("WS SEND ERROR", `${d.type} ${d.error}`);
+            }
+        });
 
         this.signaling.addEventListener("connected", (event) => {
             const reconnect = Boolean(event.detail?.reconnect);

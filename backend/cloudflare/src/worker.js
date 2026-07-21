@@ -130,6 +130,7 @@ export class Room extends DurableObject {
     server.serializeAttachment({
       peerId
     });
+    console.log("[ROOM] connect", peerId);
 
     return new Response(null, {
       status: 101,
@@ -138,7 +139,17 @@ export class Room extends DurableObject {
   }
 
   webSocketMessage(ws, message) {
-    const size =
+      const from = attachmentOf(ws)?.peerId ?? "unknown";
+
+      console.log(
+          "[ROOM] message",
+          from,
+          typeof message === "string"
+              ? message.slice(0, 80)
+              : "<binary>"
+      );
+      
+      const size =
       typeof message === "string"
         ? message.length
         : message.byteLength;
@@ -159,6 +170,9 @@ export class Room extends DurableObject {
 
       if (other.readyState === WS_OPEN) {
         try {
+            const to = attachmentOf(other)?.peerId ?? "unknown";
+
+            console.log("[ROOM] relay", from, "->", to);
           other.send(message);
         } catch {}
       }
@@ -167,6 +181,10 @@ export class Room extends DurableObject {
 
   webSocketClose(ws) {
     try {
+        console.log(
+            "[ROOM] close",
+            attachmentOf(ws)?.peerId ?? "unknown"
+        );
       ws.close();
     } catch {}
   }
