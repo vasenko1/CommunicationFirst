@@ -64,10 +64,32 @@ export class SignalingSession extends EventTarget {
     return promise;
   }
 
-  send(payload) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    this.ws.send(JSON.stringify(payload));
-  }
+    send(payload) {
+        const json = JSON.stringify(payload);
+
+        if (!this.ws) {
+            console.warn("[WS SEND FAILED] no socket", payload.type);
+            return false;
+        }
+
+        if (this.ws.readyState !== WebSocket.OPEN) {
+            console.warn(
+                "[WS SEND FAILED]",
+                payload.type,
+                "readyState=" + this.ws.readyState
+            );
+            return false;
+        }
+
+        try {
+            this.ws.send(json);
+            console.log("[WS SEND OK]", payload.type, json.length);
+            return true;
+        } catch (error) {
+            console.error("[WS SEND ERROR]", payload.type, error);
+            return false;
+        }
+    }
 
   stop() {
     this.intentionalClose = true;
@@ -134,7 +156,8 @@ export class SignalingSession extends EventTarget {
     };
 
     ws.onmessage = (event) => {
-      if (this.ws !== ws) return;
+        console.log("[WS RECV]", event.data);
+        if (this.ws !== ws) return;
       this.dispatchEvent(new CustomEvent("message", { detail: event.data }));
     };
 

@@ -355,11 +355,16 @@ class AppController {
         await this.signaling.connect(this.state.roomId, this.state.peerId);
     }
 
-  sendSignal(payload) {
-    if (!this.signaling) return;
-    this.signaling.send(payload);
-    this.debug.log("TX", payload.type);
-  }
+    sendSignal(payload) {
+        if (!this.signaling) return;
+
+        const ok = this.signaling.send(payload);
+
+        this.debug.log(
+            ok ? "TX" : "TX FAILED",
+            payload.type
+        );
+    }
 
   async onSignal(raw) {
     let message;
