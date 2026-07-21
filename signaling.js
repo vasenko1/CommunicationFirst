@@ -68,25 +68,37 @@ export class SignalingSession extends EventTarget {
         const json = JSON.stringify(payload);
 
         if (!this.ws) {
-            console.warn("[WS SEND FAILED] no socket", payload.type);
+            this.dispatchEvent(new CustomEvent("trace", {
+                detail: { kind: "send-failed", type: payload.type, reason: "no socket" }
+            }));
             return false;
         }
 
         if (this.ws.readyState !== WebSocket.OPEN) {
-            console.warn(
-                "[WS SEND FAILED]",
-                payload.type,
-                "readyState=" + this.ws.readyState
-            );
+            this.dispatchEvent(new CustomEvent("trace", {
+                detail: {
+                    kind: "send-failed",
+                    type: payload.type,
+                    reason: `readyState=${this.ws.readyState}`
+                }
+            }));
             return false;
         }
 
         try {
             this.ws.send(json);
-            console.log("[WS SEND OK]", payload.type, json.length);
+            this.dispatchEvent(new CustomEvent("trace", {
+                detail: { kind: "send-ok", type: payload.type, size: json.length }
+            }));
             return true;
         } catch (error) {
-            console.error("[WS SEND ERROR]", payload.type, error);
+            this.dispatchEvent(new CustomEvent("trace", {
+                detail: {
+                    kind: "send-error",
+                    type: payload.type,
+                    error: String(error?.message || error)
+                }
+            }));
             return false;
         }
     }
@@ -155,11 +167,15 @@ export class SignalingSession extends EventTarget {
       }, STABLE_CONNECTION_MS);
     };
 
-    ws.onmessage = (event) => {
-        console.log("[WS RECV]", event.data);
-        if (this.ws !== ws) return;
-      this.dispatchEvent(new CustomEvent("message", { detail: event.data }));
-    };
+      ws.onmessage = (event) => {
+          if (this.ws !== ws) return;
+
+          this.dispatchEvent(new CustomEvent("trace", {
+              detail: { kind: "recv", raw: event.data }
+          }));
+
+          this.dispatchEvent(new CustomEvent("message", { detail: event.data }));
+      };
 
     ws.onerror = (event) => {
       if (this.ws !== ws) return;
