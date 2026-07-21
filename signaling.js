@@ -37,6 +37,14 @@ export class SignalingSession extends EventTarget {
     this.reconnectAttempts = 0;
     this.reconnectTimer = null;
     this.stableTimer = null;
+
+      this.heartbeatInterval = null;
+      this.heartbeatWatchdog = null;
+      this.lastPongAt = 0;
+
+      this.heartbeatIntervalMs = 4000;
+      this.heartbeatCheckMs = 1000;
+      this.heartbeatTimeoutMs = 6000;
   }
 
   start(roomId, peerId) {
@@ -52,6 +60,9 @@ export class SignalingSession extends EventTarget {
     this._clearReconnectTimer();
     this._clearStableTimer();
 
+    this.stopHeartbeat();
+    this.lastPongAt = 0;
+      
     this._detachAndClose(this.ws);
     this.ws = null;
 
@@ -103,10 +114,75 @@ export class SignalingSession extends EventTarget {
         }
     }
 
+    startHeartbeat() {
+        this.stopHeartbeat();
+        this.lastPongAt = Date.now();
+
+        this.dispatchEvent(new CustomEvent("trace", {
+            detail: { kind: "heartbeat-start" }
+        }));
+
+        this.heartbeatInterval = setInterval(() => {
+            this.sendPing();
+        }, this.heartbeatIntervalMs);
+
+        this.heartbeatWatchdog = setInterval(() => {
+            this.checkHeartbeat();
+        }, this.heartbeatCheckMs);
+    }
+
+    stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+
+        if (this.heartbeatWatchdog) {
+            clearInterval(this.heartbeatWatchdog);
+            this.heartbeatWatchdog = null;
+        }
+    }
+
+    sendPing() {
+        this.send({ type: "ping" });
+    }
+
+    handlePong() {
+        this.lastPongAt = Date.now();
+    }
+
+    checkHeartbeat() {
+        if (!this.ws) return;
+        if (!this.lastPongAt) return;
+
+        if (Date.now() - this.lastPongAt <= this.heartbeatTimeoutMs) {
+            return;
+        }
+
+        this.dispatchEvent(new CustomEvent("trace", {
+            detail: { kind: "heartbeat-timeout" }
+        }));
+        
+        const ws = this.ws;
+        this.ws = null;
+
+        this.stopHeartbeat();
+        this._detachAndClose(ws);
+
+        if (!this.intentionalClose && this.openedOnce) {
+            this.dispatchEvent(new CustomEvent("trace", {
+                detail: { kind: "heartbeat-reconnect" }
+            }));
+            
+            this._scheduleReconnect();
+        }
+    }
+
   stop() {
     this.intentionalClose = true;
     this._clearReconnectTimer();
     this._clearStableTimer();
+    this.stopHeartbeat();
     this._setState("disconnected");
 
     const ws = this.ws;
@@ -160,6 +236,8 @@ export class SignalingSession extends EventTarget {
         resolve();
       }
 
+        this.startHeartbeat();
+
       this._clearStableTimer();
       this.stableTimer = setTimeout(() => {
         this.stableTimer = null;
@@ -169,6 +247,18 @@ export class SignalingSession extends EventTarget {
 
       ws.onmessage = (event) => {
           if (this.ws !== ws) return;
+
+          let data;
+          try {
+              data = JSON.parse(event.data);
+          } catch {
+              data = null;
+          }
+
+          if (data?.type === "pong") {
+              this.handlePong();
+              return;
+          }
 
           this.dispatchEvent(new CustomEvent("trace", {
               detail: { kind: "recv", raw: event.data }
@@ -185,6 +275,7 @@ export class SignalingSession extends EventTarget {
     ws.onclose = (event) => {
       if (this.ws !== ws) return;
       this._clearStableTimer();
+        this.stopHeartbeat();
       this.dispatchEvent(new CustomEvent("close", {
         detail: { code: event.code, reason: event.reason }
       }));

@@ -227,6 +227,11 @@ class AppController {
                       this.recoveryWaitTimer = null;
                   }
 
+                  if (this.reconnectTimer) {
+                      clearTimeout(this.reconnectTimer);
+                      this.reconnectTimer = null;
+                  }
+
                   this.stopStatsPolling();
                   this.ui.setStatus("Разговор", "🟢");
                   this.startStatsPolling();
@@ -305,6 +310,21 @@ class AppController {
 
             if (d.kind === "send-error") {
                 this.debug.log("WS SEND ERROR", `${d.type} ${d.error}`);
+            }
+
+            if (d.kind === "heartbeat-start") {
+                this.debug.log("Heartbeat", "started");
+                return;
+            }
+
+            if (d.kind === "heartbeat-timeout") {
+                this.debug.log("Heartbeat", "timeout");
+                return;
+            }
+
+            if (d.kind === "heartbeat-reconnect") {
+                this.debug.log("Heartbeat", "reconnect");
+                return;
             }
         });
 
