@@ -139,6 +139,34 @@ export class Room extends DurableObject {
   }
 
   webSocketMessage(ws, message) {
+      const size =
+          typeof message === "string"
+              ? message.length
+              : message.byteLength;
+
+      if (typeof message === "string") {
+          let data = null;
+
+          try {
+              data = JSON.parse(message);
+          } catch {}
+
+          if (data?.type === "ping") {
+              console.log(
+                  "[ROOM] ping",
+                  attachmentOf(ws)?.peerId ?? "unknown"
+              );
+
+              try {
+                  ws.send(JSON.stringify({
+                      type: "pong"
+                  }));
+              } catch {}
+
+              return;
+          }
+      }
+      
       const from = attachmentOf(ws)?.peerId ?? "unknown";
 
       console.log(
@@ -148,11 +176,6 @@ export class Room extends DurableObject {
               ? message.slice(0, 80)
               : "<binary>"
       );
-      
-      const size =
-      typeof message === "string"
-        ? message.length
-        : message.byteLength;
 
     if (size > MAX_MESSAGE_BYTES) {
       try {
