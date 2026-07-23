@@ -1,7 +1,3 @@
-export const CALL_STATES = Object.freeze({
-  RECONNECTING: "reconnecting",
-});
-
 export const END_REASONS = Object.freeze({
   USER: "user",
   PEER: "peer",
@@ -12,7 +8,7 @@ export const END_REASONS = Object.freeze({
 
 export function createInitialState() {
   return {
-    callState: null,
+    isReconnecting: false,
     active: false,
     host: false,
     roomId: null,

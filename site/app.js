@@ -1,4 +1,4 @@
-import { createInitialState, CALL_STATES, END_REASONS } from "./state.js";
+import { createInitialState, END_REASONS } from "./state.js";
 import { AppUI } from "./ui.js";
 import { SignalingClient } from "./signaling.js";
 import { VoicePeer } from "./peer.js";
@@ -211,7 +211,7 @@ class AppController {
               case "connected":
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_CONNECTED);
                   this.scheduleConnectionVerification();
-                  this.state.callState = null;
+                  this.state.isReconnecting = false;
                   this.state.iceRestarting = false;
 
                   if (this.reconnectTimer) {
@@ -230,7 +230,7 @@ class AppController {
                       this.recoveryVerificationTimer = null;
                   }
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_DISCONNECTED);
-                  this.state.callState = CALL_STATES.RECONNECTING;
+                  this.state.isReconnecting = true;
                   
                   if (!this.reconnectTimer) {
                       this.reconnectTimer = setTimeout(() => {
@@ -257,7 +257,7 @@ class AppController {
                   if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
                       this.attemptIceRecovery();
                   }
-                  this.state.callState = CALL_STATES.RECONNECTING;
+                  this.state.isReconnecting = true;
                   if (this.reconnectTimer) {
                       clearTimeout(this.reconnectTimer);
                       this.reconnectTimer = null;
@@ -269,7 +269,7 @@ class AppController {
                   break;
 
               case "closed":
-                  this.state.callState = CALL_STATES.RECONNECTING;
+                  this.state.isReconnecting = true;
                   if (this.reconnectTimer) {
                       clearTimeout(this.reconnectTimer);
                       this.reconnectTimer = null;
@@ -355,7 +355,7 @@ class AppController {
             if (!this.state.active) return;
 
             if (reconnect) {
-                this.state.callState = CALL_STATES.RECONNECTING;
+                this.state.isReconnecting = true;
                 this.ui.setStatus("Восстанавливаем служебной канал...", "🟠");
 
                 const action = this.emitRecoveryEvent(RECOVERY_EVENTS.TRANSPORT_CONNECTED);
@@ -384,7 +384,7 @@ class AppController {
                 this.emitRecoveryEvent(
                     RECOVERY_EVENTS.TRANSPORT_RECONNECTING
                 );
-                this.state.callState = CALL_STATES.RECONNECTING;
+                this.state.isReconnecting = true;
                 this.ui.setStatus("Восстанавливаем служебный канал...", "🟠");
             }
         });
@@ -533,7 +533,7 @@ class AppController {
       if (message.type === "offer" && !this.state.host) {
           this.debug.log(
               "Recovery",
-              this.state.callState === CALL_STATES.RECONNECTING
+              this.state.isReconnecting
                   ? "RX restart offer"
                   : "RX offer"
           );
@@ -543,7 +543,7 @@ class AppController {
 
               this.debug.log(
                   "Recovery",
-                  this.state.callState === CALL_STATES.RECONNECTING
+                  this.state.isReconnecting
                       ? "Restart offer applied"
                       : "Offer applied"
               );
@@ -552,7 +552,7 @@ class AppController {
 
               this.debug.log(
                   "Recovery",
-                  this.state.callState === CALL_STATES.RECONNECTING
+                  this.state.isReconnecting
                       ? "TX restart answer"
                       : "TX answer"
               );
