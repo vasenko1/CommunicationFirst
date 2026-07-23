@@ -446,10 +446,12 @@ class AppController {
             `${previousState} + ${type} -> ${this.recovery.state}`
         );
 
-        if (action !== RECOVERY_ACTIONS.NONE) {
+        if (
+            action !== RECOVERY_ACTIONS.NONE &&
+            (action !== RECOVERY_ACTIONS.START_ICE_RESTART || this.state.host)
+        ) {
             this.debug.log("Recovery decision", action);
         }
-
         return action;
     }
 
