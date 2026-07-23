@@ -641,23 +641,6 @@ class AppController {
         }
 
         if (!this.transportConnected) {
-            if (!this.recoveryStartAt) {
-                this.recoveryStartAt = Date.now();
-            }
-
-            if (Date.now() - this.recoveryStartAt >= this.maxRecoveryWaitMs) {
-                this.debug.log("Recovery", "giving up");
-                this.endCall(false, false, END_REASONS.NETWORK);
-                return;
-            }
-
-            if (!this.recoveryWaitTimer) {
-                this.recoveryWaitTimer = setTimeout(() => {
-                    this.recoveryWaitTimer = null;
-                    this.attemptIceRecovery();
-                }, 2000);
-            }
-
             return;
         }
 
@@ -756,6 +739,7 @@ class AppController {
     this.transportConnected = false;
       this.recoveryAttempts = 0;
       this.state.iceRestarting = false;
+      this.recovery.reset();
       if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
