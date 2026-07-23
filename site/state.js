@@ -5,7 +5,6 @@ export const CALL_STATES = Object.freeze({
   NEGOTIATING: "negotiating",
   CONNECTED: "connected",
   RECONNECTING: "reconnecting",
-  ENDED: "ended",
 });
 
 export const END_REASONS = Object.freeze({
