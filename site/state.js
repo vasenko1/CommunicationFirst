@@ -28,7 +28,6 @@ export function createInitialState() {
     ws: null,
     pc: null,
     localStream: null,
-    pendingCandidates: [],
     offerSent: false,
     peerJoined: false,
     endReason: END_REASONS.UNKNOWN,

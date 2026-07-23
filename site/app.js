@@ -133,7 +133,6 @@ class AppController {
     this.state.callState = CALL_STATES.REQUESTING_MICROPHONE;
     this.state.peerJoined = false;
     this.state.offerSent = false;
-    this.state.pendingCandidates = [];
     this.state.endReason = END_REASONS.UNKNOWN;
 
     this.ui.setButtonDisabled(true);
