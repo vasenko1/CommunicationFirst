@@ -206,7 +206,6 @@ class AppController {
           switch (state) {
               case "new":
               case "connecting":
-                  this.state.callState = CALL_STATES.NEGOTIATING;
                   this.ui.setStatus("Соединение...", "🟡");
                   break;
 
