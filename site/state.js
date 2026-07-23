@@ -23,11 +23,7 @@ export function createInitialState() {
     host: false,
     roomId: null,
     peerId: null,
-    ws: null,
     pc: null,
-    localStream: null,
     offerSent: false,
-    peerJoined: false,
-    endReason: END_REASONS.UNKNOWN,
   };
 }

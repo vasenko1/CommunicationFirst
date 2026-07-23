@@ -131,9 +131,7 @@ class AppController {
     this.state.roomId = roomId;
     this.state.peerId = this.randomHex(8);
     this.state.callState = CALL_STATES.REQUESTING_MICROPHONE;
-    this.state.peerJoined = false;
     this.state.offerSent = false;
-    this.state.endReason = END_REASONS.UNKNOWN;
 
     this.ui.setButtonDisabled(true);
 
@@ -181,7 +179,6 @@ class AppController {
 
     this.peer = new VoicePeer(ICE_SERVERS);
     await this.peer.init(localStream);
-    this.state.localStream = localStream;
     this.state.pc = this.peer.pc;
 
     this.peer.addEventListener("track", (event) => {
@@ -489,7 +486,6 @@ class AppController {
     this.debug.log("RX", message.type);
 
     if (message.type === "join" && this.state.host) {
-      this.state.peerJoined = true;
       this.ui.setStatus("Собеседник подключился", "🟢");
 
       this.sendSignal({
@@ -501,7 +497,6 @@ class AppController {
     }
 
     if (message.type === "join" && !this.state.host) {
-      this.state.peerJoined = true;
       this.ui.setStatus("Соединение...", "🟡");
 
       this.sendSignal({
@@ -512,7 +507,6 @@ class AppController {
     }
 
     if (message.type === "peer-joined" && !this.state.host) {
-      this.state.peerJoined = true;
       this.ui.setStatus("Соединение...", "🟡");
 
       this.sendSignal({
@@ -761,11 +755,7 @@ class AppController {
       } catch {}
     }
 
-    this.state.endReason = reason;
-    this.state = {
-      ...createInitialState(),
-      endReason: reason,
-    };
+    this.state = createInitialState();
     this.transportConnected = false;
       this.recoveryAttempts = 0;
       this.state.iceRestarting = false;
