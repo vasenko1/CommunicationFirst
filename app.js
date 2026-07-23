@@ -3,7 +3,7 @@ import { AppUI } from "./ui.js";
 import { SignalingClient } from "./signaling.js";
 import { VoicePeer } from "./peer.js";
 import { DebugPanel } from "./debug.js";
-import { RecoveryController, RECOVERY_ACTIONS } from "./recovery.js";
+import { RecoveryController, RECOVERY_EVENTS, RECOVERY_ACTIONS } from "./recovery.js";
 
 const SIGNALING_BASE = "wss://communication-first.communication-first-igor.workers.dev";
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -217,6 +217,7 @@ class AppController {
                   break;
 
               case "connected":
+                  this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_CONNECTED);
                   this.state.callState = CALL_STATES.CONNECTED;
                   this.state.iceRestarting = false;
                   this.recoveryAttempts = 0;
@@ -238,6 +239,7 @@ class AppController {
                   break;
 
               case "disconnected":
+                  this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_DISCONNECTED);
                   this.state.callState = CALL_STATES.RECONNECTING;
                   if (!this.recoveryStartAt) {
                       this.recoveryStartAt = Date.now();
@@ -245,12 +247,23 @@ class AppController {
                   if (!this.reconnectTimer) {
                       this.reconnectTimer = setTimeout(() => {
                           this.reconnectTimer = null;
-                          this.attemptIceRecovery();
+
+                          const action = this.emitRecoveryEvent(
+                              RECOVERY_EVENTS.DISCONNECT_DEBOUNCE_EXPIRED
+                          );
+
+                          if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
+                              this.attemptIceRecovery();
+                          }
                       }, 2000);
                   }
                   break;
 
               case "failed":
+                  const action = this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_FAILED);
+                  if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
+                      this.attemptIceRecovery();
+                  }
                   this.state.callState = CALL_STATES.RECONNECTING;
                   if (this.reconnectTimer) {
                       clearTimeout(this.reconnectTimer);
@@ -260,7 +273,6 @@ class AppController {
                   this.ui.setStatus("Восстанавливаем соединение...", "🟠");
                   this.state.offerSent = false;
                   this.state.iceRestarting = false;
-                  this.attemptIceRecovery();
                   break;
 
               case "closed":
@@ -275,9 +287,24 @@ class AppController {
           }
       });
 
-    this.peer.addEventListener("iceconnectionstatechange", (event) => {
-      this.debug.log("ICE", event.detail);
-    });
+      this.peer.addEventListener("iceconnectionstatechange", (event) => {
+          const state = event.detail;
+
+          this.debug.log("ICE", state);
+
+          if (!this.state.active) return;
+
+          switch (state) {
+              case "checking":
+              case "connected":
+              case "completed":
+              case "disconnected":
+              case "failed":
+              case "closed":
+                  this.debug.log("ICE FSM", state);
+                  break;
+          }
+      });
 
     this.peer.addEventListener("icegatheringstatechange", (event) => {
       this.debug.log("ICE gather", event.detail);
@@ -337,13 +364,12 @@ class AppController {
 
             if (reconnect) {
                 this.state.callState = CALL_STATES.RECONNECTING;
-                this.ui.setStatus("Восстанавливаем служебный канал...", "🟠");
-            } else {
-                this.state.callState = CALL_STATES.WAITING_FOR_PEER;
-                this.ui.setStatus(
-                    this.state.host ? "Ожидание собеседника..." : "Подключение...",
-                    "🟡"
-                );
+                this.ui.setStatus("Восстанавливаем служебной канал...", "🟠");
+
+                const action = this.emitRecoveryEvent(RECOVERY_EVENTS.TRANSPORT_CONNECTED);
+                if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
+                    this.attemptIceRecovery();
+                }
             }
 
             this.sendSignal({
@@ -363,6 +389,9 @@ class AppController {
     
             if (state === "reconnecting") {
                 this.transportConnected = false;
+                this.emitRecoveryEvent(
+                    RECOVERY_EVENTS.TRANSPORT_RECONNECTING
+                );
                 this.state.callState = CALL_STATES.RECONNECTING;
                 this.ui.setStatus("Восстанавливаем служебный канал...", "🟠");
             }
@@ -406,6 +435,16 @@ class AppController {
             ok ? "TX" : "TX FAILED",
             payload.type
         );
+    }
+    
+    emitRecoveryEvent(type) {
+        const action = this.recovery.handle({ type });
+
+        if (action !== RECOVERY_ACTIONS.NONE) {
+            this.debug.log("Recovery decision", action);
+        }
+
+        return action;
     }
 
   async onSignal(raw) {
@@ -456,9 +495,8 @@ class AppController {
           this.ui.setStatus("Соединение...", "🟡");
 
           if (!this.state.offerSent) {
-              const action = this.recovery.onPeerReady({ callState: this.state.callState, transportConnected: this.transportConnected });
-              const iceRestart =
-                  action === RECOVERY_ACTIONS.START_ICE_RESTART;
+              this.debug.log("Recovery state", this.recovery.state);
+              const iceRestart = this.recovery.shouldRestartIce();
 
               if (iceRestart) {
                   this.debug.log("Recovery", "starting ICE restart");
@@ -560,32 +598,7 @@ class AppController {
         }
     }
 
-    attemptIceRecovery() {
-        if (!this.state.active || !this.state.host) {
-            return;
-        }
-
-        if (!this.transportConnected) {
-            if (!this.recoveryStartAt) {
-                this.recoveryStartAt = Date.now();
-            }
-
-            if (Date.now() - this.recoveryStartAt >= this.maxRecoveryWaitMs) {
-                this.debug.log("Recovery", "giving up");
-                this.endCall(false, false, END_REASONS.NETWORK);
-                return;
-            }
-
-            if (!this.recoveryWaitTimer) {
-                this.recoveryWaitTimer = setTimeout(() => {
-                    this.recoveryWaitTimer = null;
-                    this.attemptIceRecovery();
-                }, 2000);
-            }
-
-            return;
-        }
-
+    startIceRestart() {
         if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
             this.debug.log("Recovery", "giving up");
             this.endCall(false, false, END_REASONS.NETWORK);
@@ -620,6 +633,18 @@ class AppController {
                 }, 2000);
             }
         });
+    }
+
+    attemptIceRecovery() {
+        if (!this.state.active || !this.state.host) {
+            return;
+        }
+
+        if (!this.transportConnected) {
+            return;
+        }
+
+        this.startIceRestart();
     }
 
   async updateStats() {
@@ -714,6 +739,7 @@ class AppController {
     this.transportConnected = false;
       this.recoveryAttempts = 0;
       this.state.iceRestarting = false;
+      this.recovery.reset();
       if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;

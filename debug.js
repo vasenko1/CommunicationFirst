@@ -2,7 +2,7 @@ export class DebugPanel {
   constructor(logElement) {
     this.logElement = logElement;
     this.lines = [];
-    this.maxLines = 40;
+    this.maxLines = 500;
     this.render();
   }
 
