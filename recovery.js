@@ -112,21 +112,22 @@ export class RecoveryController {
             return RECOVERY_ACTIONS.NONE;
         }
 
-      case RECOVERY_STATES.AWAITING_PEER_RECOVERY:
-        switch (event?.type) {
-          case RECOVERY_EVENTS.PEER_CONNECTED:
-            return this.enterVerifiedConnected();
+        case RECOVERY_STATES.AWAITING_PEER_RECOVERY:
+            switch (event?.type) {
+                case RECOVERY_EVENTS.PEER_CONNECTED:
+                    return this.enterVerifiedConnected();
 
-          case RECOVERY_EVENTS.PEER_DISCONNECTED:
-            return this.enterDisconnected();
+                case RECOVERY_EVENTS.PEER_DISCONNECTED:
+                case RECOVERY_EVENTS.PEER_FAILED:
+                    return RECOVERY_ACTIONS.NONE;
 
-          case RECOVERY_EVENTS.TRANSPORT_RECONNECTING:
-          case RECOVERY_EVENTS.TRANSPORT_FAILED:
-            return this.awaitTransport();
+                case RECOVERY_EVENTS.TRANSPORT_RECONNECTING:
+                case RECOVERY_EVENTS.TRANSPORT_FAILED:
+                    return this.awaitTransport();
 
-          default:
-            return RECOVERY_ACTIONS.NONE;
-        }
+                default:
+                    return RECOVERY_ACTIONS.NONE;
+            }
 
         case RECOVERY_STATES.VERIFIED_CONNECTED:
             switch (event?.type) {
