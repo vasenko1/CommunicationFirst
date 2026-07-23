@@ -81,7 +81,9 @@ export class VoicePeer extends EventTarget {
 
   async flushPendingCandidates() {
     while (this.pendingCandidates.length) {
-      await this.pc.addIceCandidate(this.pendingCandidates.shift());
+      const candidate = this.pendingCandidates[0];
+      await this.pc.addIceCandidate(candidate);
+      this.pendingCandidates.shift();
     }
   }
 
