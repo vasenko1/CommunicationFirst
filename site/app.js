@@ -130,7 +130,6 @@ class AppController {
     this.state.host = host;
     this.state.roomId = roomId;
     this.state.peerId = this.randomHex(8);
-    this.state.callState = CALL_STATES.REQUESTING_MICROPHONE;
     this.state.offerSent = false;
 
     this.ui.setButtonDisabled(true);
@@ -212,7 +211,6 @@ class AppController {
               case "connected":
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_CONNECTED);
                   this.scheduleConnectionVerification();
-                  this.state.callState = CALL_STATES.CONNECTED;
                   this.state.iceRestarting = false;
 
                   if (this.reconnectTimer) {
@@ -309,7 +307,6 @@ class AppController {
   }
 
     async connectSignaling() {
-        this.state.callState = CALL_STATES.CONNECTING_SIGNALING;
         this.signaling = new SignalingClient(SIGNALING_BASE);
         this.signaling.addEventListener("trace", (event) => {
             const d = event.detail || {};
