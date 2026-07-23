@@ -211,6 +211,7 @@ class AppController {
               case "connected":
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_CONNECTED);
                   this.scheduleConnectionVerification();
+                  this.state.callState = null;
                   this.state.iceRestarting = false;
 
                   if (this.reconnectTimer) {
