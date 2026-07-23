@@ -287,9 +287,24 @@ class AppController {
           }
       });
 
-    this.peer.addEventListener("iceconnectionstatechange", (event) => {
-      this.debug.log("ICE", event.detail);
-    });
+      this.peer.addEventListener("iceconnectionstatechange", (event) => {
+          const state = event.detail;
+
+          this.debug.log("ICE", state);
+
+          if (!this.state.active) return;
+
+          switch (state) {
+              case "checking":
+              case "connected":
+              case "completed":
+              case "disconnected":
+              case "failed":
+              case "closed":
+                  this.debug.log("ICE FSM", state);
+                  break;
+          }
+      });
 
     this.peer.addEventListener("icegatheringstatechange", (event) => {
       this.debug.log("ICE gather", event.detail);
@@ -480,6 +495,7 @@ class AppController {
           this.ui.setStatus("Соединение...", "🟡");
 
           if (!this.state.offerSent) {
+              this.debug.log("Recovery state", this.recovery.state);
               const iceRestart = this.recovery.shouldRestartIce();
 
               if (iceRestart) {
