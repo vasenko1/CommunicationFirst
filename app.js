@@ -51,6 +51,7 @@ class AppController {
     this.statsTimer = null;
     this.transportConnected = false;
     this.reconnectTimer = null;
+    this.recoveryVerificationTimer = null;
     this.recoveryAttempts = 0;
     this.maxRecoveryAttempts = 3;
     this.recoveryStartAt = null;
@@ -218,6 +219,7 @@ class AppController {
 
               case "connected":
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_CONNECTED);
+                  this.scheduleConnectionVerification();
                   this.state.callState = CALL_STATES.CONNECTED;
                   this.state.iceRestarting = false;
                   this.recoveryAttempts = 0;
@@ -239,6 +241,10 @@ class AppController {
                   break;
 
               case "disconnected":
+                  if (this.recoveryVerificationTimer) {
+                      clearTimeout(this.recoveryVerificationTimer);
+                      this.recoveryVerificationTimer = null;
+                  }
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_DISCONNECTED);
                   this.state.callState = CALL_STATES.RECONNECTING;
                   if (!this.recoveryStartAt) {
@@ -260,7 +266,12 @@ class AppController {
                   break;
 
               case "failed":
+                  if (this.recoveryVerificationTimer) {
+                      clearTimeout(this.recoveryVerificationTimer);
+                      this.recoveryVerificationTimer = null;
+                  }
                   const action = this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_FAILED);
+                  
                   if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
                       this.attemptIceRecovery();
                   }
@@ -445,6 +456,30 @@ class AppController {
         }
 
         return action;
+    }
+
+    scheduleConnectionVerification() {
+        if (this.recoveryVerificationTimer) {
+            clearTimeout(this.recoveryVerificationTimer);
+            this.recoveryVerificationTimer = null;
+        }
+
+        if (!this.recovery.isVerifyingConnection()) {
+            return;
+        }
+
+        this.recoveryVerificationTimer = setTimeout(() => {
+            this.recoveryVerificationTimer = null;
+
+            if (!this.state.active) return;
+
+            this.emitRecoveryEvent(
+                RECOVERY_EVENTS.CONNECTION_VERIFIED
+            );
+
+            this.debug.log("Recovery", "connection verified");
+            
+        }, 2000);
     }
 
   async onSignal(raw) {
@@ -714,6 +749,12 @@ class AppController {
     const peerId = this.state.peerId;
 
       this.recoveryStartAt = null;
+
+      if (this.recoveryVerificationTimer) {
+          clearTimeout(this.recoveryVerificationTimer);
+          this.recoveryVerificationTimer = null;
+      }
+      
       if (this.recoveryWaitTimer) {
           clearTimeout(this.recoveryWaitTimer);
           this.recoveryWaitTimer = null;
