@@ -54,9 +54,6 @@ class AppController {
     this.recoveryVerificationTimer = null;
     this.recoveryAttempts = 0;
     this.maxRecoveryAttempts = 3;
-    this.recoveryStartAt = null;
-    this.recoveryWaitTimer = null;
-    this.maxRecoveryWaitMs = 30000;
     this.init();
   }
 
@@ -224,12 +221,6 @@ class AppController {
                   this.state.iceRestarting = false;
                   this.recoveryAttempts = 0;
 
-                  this.recoveryStartAt = null;
-                  if (this.recoveryWaitTimer) {
-                      clearTimeout(this.recoveryWaitTimer);
-                      this.recoveryWaitTimer = null;
-                  }
-
                   if (this.reconnectTimer) {
                       clearTimeout(this.reconnectTimer);
                       this.reconnectTimer = null;
@@ -247,9 +238,7 @@ class AppController {
                   }
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_DISCONNECTED);
                   this.state.callState = CALL_STATES.RECONNECTING;
-                  if (!this.recoveryStartAt) {
-                      this.recoveryStartAt = Date.now();
-                  }
+                  
                   if (!this.reconnectTimer) {
                       this.reconnectTimer = setTimeout(() => {
                           this.reconnectTimer = null;
@@ -754,16 +743,9 @@ class AppController {
     const peer = this.peer;
     const peerId = this.state.peerId;
 
-      this.recoveryStartAt = null;
-
       if (this.recoveryVerificationTimer) {
           clearTimeout(this.recoveryVerificationTimer);
           this.recoveryVerificationTimer = null;
-      }
-      
-      if (this.recoveryWaitTimer) {
-          clearTimeout(this.recoveryWaitTimer);
-          this.recoveryWaitTimer = null;
       }
 
     this.stopStatsPolling();
