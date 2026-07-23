@@ -219,7 +219,6 @@ class AppController {
                   this.scheduleConnectionVerification();
                   this.state.callState = CALL_STATES.CONNECTED;
                   this.state.iceRestarting = false;
-                  this.recoveryAttempts = 0;
 
                   if (this.reconnectTimer) {
                       clearTimeout(this.reconnectTimer);
@@ -474,6 +473,7 @@ class AppController {
                 RECOVERY_EVENTS.CONNECTION_VERIFIED
             );
 
+            this.recoveryAttempts = 0;
             this.debug.log("Recovery", "connection verified");
             
         }, 2000);
