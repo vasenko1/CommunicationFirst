@@ -167,6 +167,7 @@ export class SignalingSession extends EventTarget {
         this.ws = null;
 
         this.stopHeartbeat();
+        this._clearStableTimer();
         this._detachAndClose(ws);
 
         if (!this.intentionalClose && this.openedOnce) {
