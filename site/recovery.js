@@ -9,7 +9,6 @@ export const RECOVERY_STATES = Object.freeze({
 export const RECOVERY_ACTIONS = Object.freeze({
   NONE: "none",
   START_ICE_RESTART: "start-ice-restart",
-  GIVE_UP: "give-up",
 });
 
 export const RECOVERY_EVENTS = Object.freeze({
