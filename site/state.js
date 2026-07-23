@@ -2,11 +2,9 @@ export const CALL_STATES = Object.freeze({
   IDLE: "idle",
   REQUESTING_MICROPHONE: "requesting_microphone",
   CONNECTING_SIGNALING: "connecting_signaling",
-  WAITING_FOR_PEER: "waiting_for_peer",
   NEGOTIATING: "negotiating",
   CONNECTED: "connected",
   RECONNECTING: "reconnecting",
-  DISCONNECTING: "disconnecting",
   ENDED: "ended",
 });
 
