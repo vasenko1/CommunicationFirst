@@ -447,9 +447,15 @@ class AppController {
             payload.type
         );
     }
-    
+
     emitRecoveryEvent(type) {
+        const previousState = this.recovery.state;
         const action = this.recovery.handle({ type });
+
+        this.debug.log(
+            "Recovery FSM",
+            `${previousState} + ${type} -> ${this.recovery.state}`
+        );
 
         if (action !== RECOVERY_ACTIONS.NONE) {
             this.debug.log("Recovery decision", action);
