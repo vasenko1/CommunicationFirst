@@ -619,7 +619,6 @@ class AppController {
         this.debug.log("Recovery", `starting ICE restart #${this.recoveryAttempts}`);
 
         void this.createAndSendOffer({ iceRestart: true }).catch((error) => {
-            this.offerSent = false;
             this.iceRestarting = false;
             this.debug.log("Recovery ERROR", String(error?.message || error));
 
