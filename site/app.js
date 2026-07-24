@@ -506,17 +506,14 @@ class AppController {
       if (message.type === "peer-ready" && this.state.host) {
           this.ui.setStatus("Соединение...", "🟡");
 
-          if (!this.offerSent) {
-              this.debug.log("Recovery state", this.recovery.state);
-              const iceRestart = this.recovery.shouldRestartIce();
+          this.debug.log("Recovery state", this.recovery.state);
+          const iceRestart = this.recovery.shouldRestartIce();
 
-              if (iceRestart) {
-                  this.debug.log("Recovery", "starting ICE restart");
-              }
-
-              await this.createAndSendOffer({ iceRestart });
+          if (iceRestart) {
+              this.debug.log("Recovery", "starting ICE restart");
           }
 
+          await this.createAndSendOffer({ iceRestart });
           return;
       }
 
