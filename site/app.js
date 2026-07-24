@@ -178,7 +178,6 @@ class AppController {
 
     this.peer = new VoicePeer(ICE_SERVERS);
     await this.peer.init(localStream);
-    this.state.pc = this.peer.pc;
 
     this.peer.addEventListener("track", (event) => {
       const stream = event.detail;
@@ -602,7 +601,7 @@ class AppController {
   }
 
     async createAndSendOffer({ iceRestart = false } = {}) {
-        if (!this.state.pc || this.state.offerSent) return;
+        if (!this.peer?.pc || this.state.offerSent) return;
 
         this.state.offerSent = true;
         this.ui.setStatus("Соединение...", "🟡");
@@ -670,10 +669,10 @@ class AppController {
     }
 
   async updateStats() {
-    if (!this.state.active || !this.state.pc) return;
+    if (!this.state.active || !this.peer?.pc) return;
 
     try {
-      const stats = await this.state.pc.getStats();
+      const stats = await this.peer.pc.getStats();
       const localCandidates = new Map();
       const remoteCandidates = new Map();
       let selectedPair = null;
