@@ -310,7 +310,7 @@ class AppController {
             const d = event.detail || {};
 
             if (d.kind === "recv") {
-                this.debug.log("WS RECV", d.raw);
+                this.debug.log("WS RECV", `${d.type} ${d.size}`);
                 return;
             }
 
