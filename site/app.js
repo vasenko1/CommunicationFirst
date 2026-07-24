@@ -7,6 +7,7 @@ import { RecoveryController, RECOVERY_EVENTS, RECOVERY_ACTIONS } from "./recover
 
 const SIGNALING_BASE = "wss://communication-first.communication-first-igor.workers.dev";
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+const MAX_RECOVERY_ATTEMPTS = 3;
 
 function describeCandidate(candidate) {
   const raw = candidate?.candidate || "";
@@ -53,7 +54,6 @@ class AppController {
     this.reconnectTimer = null;
     this.recoveryVerificationTimer = null;
     this.recoveryAttempts = 0;
-    this.maxRecoveryAttempts = 3;
     this.init();
   }
 
@@ -600,7 +600,7 @@ class AppController {
     }
 
     startIceRestart() {
-        if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+        if (this.recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
             this.debug.log("Recovery", "giving up");
             this.endCall(false, false, END_REASONS.NETWORK);
             return;
@@ -620,7 +620,7 @@ class AppController {
             this.iceRestarting = false;
             this.debug.log("Recovery ERROR", String(error?.message || error));
 
-            if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+            if (this.recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
                 this.debug.log("Recovery", "giving up");
                 this.endCall(false, false, END_REASONS.NETWORK);
                 return;
