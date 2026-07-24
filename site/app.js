@@ -50,7 +50,6 @@ class AppController {
     this.offerSent = false;
     this.iceRestarting = false;
     this.statsTimer = null;
-    this.transportConnected = false;
     this.reconnectTimer = null;
     this.recoveryVerificationTimer = null;
     this.recoveryAttempts = 0;
@@ -347,7 +346,6 @@ class AppController {
         this.signaling.addEventListener("connected", (event) => {
             const reconnect = Boolean(event.detail?.reconnect);
             this.debug.log("WS", reconnect ? "reconnected" : "open");
-            this.transportConnected = true;
 
             if (!this.state.active) return;
 
@@ -376,7 +374,6 @@ class AppController {
             if (!this.state.active) return;
     
             if (state === "reconnecting") {
-                this.transportConnected = false;
                 this.emitRecoveryEvent(
                     RECOVERY_EVENTS.TRANSPORT_RECONNECTING
                 );
@@ -392,7 +389,6 @@ class AppController {
         });
     
         this.signaling.addEventListener("close", (event) => {
-            this.transportConnected = false;
             this.debug.log(
                 "WS",
                 `close ${event.detail.code} ${event.detail.reason || ""}`.trim()
@@ -400,7 +396,6 @@ class AppController {
         });
     
         this.signaling.addEventListener("failed", () => {
-            this.transportConnected = false;
             this.debug.log("WS", "failed");
             if (!this.state.active) return;
             this.endCall(false, false, END_REASONS.NETWORK);
@@ -658,7 +653,7 @@ class AppController {
             return;
         }
 
-        if (!this.transportConnected) {
+        if (this.signaling?.state !== "connected") {
             return;
         }
 
@@ -749,7 +744,6 @@ class AppController {
     }
 
     this.state = createInitialState();
-    this.transportConnected = false;
       this.recoveryAttempts = 0;
       this.iceRestarting = false;
       this.recovery.reset();
