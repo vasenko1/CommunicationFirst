@@ -37,7 +37,6 @@ const END_STATUS = {
   [END_REASONS.PEER]: { text: "Собеседник завершил разговор", dot: "🟢" },
   [END_REASONS.NETWORK]: { text: "Соединение потеряно", dot: "🔴" },
   [END_REASONS.ERROR]: { text: "Ошибка соединения", dot: "🔴" },
-  [END_REASONS.UNKNOWN]: { text: "Готово", dot: "🟢" },
 };
 
 class AppController {
@@ -730,7 +729,7 @@ class AppController {
     this.debug.log("Stats", "polling stopped");
   }
 
-  endCall(resetHash, notifyPeer, reason = END_REASONS.UNKNOWN) {
+  endCall(resetHash, notifyPeer, reason) {
     const ws = this.signaling;
     const peer = this.peer;
     const peerId = this.state.peerId;
@@ -785,7 +784,7 @@ class AppController {
     this.ui.showInvite(false);
     this.syncIdleUI();
 
-    const ended = END_STATUS[reason] || END_STATUS[END_REASONS.UNKNOWN];
+    const ended = END_STATUS[reason];
     this.ui.setStatus(ended.text, ended.dot);
   }
 }

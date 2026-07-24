@@ -3,7 +3,6 @@ export const END_REASONS = Object.freeze({
   PEER: "peer",
   NETWORK: "network",
   ERROR: "error",
-  UNKNOWN: "unknown",
 });
 
 export function createInitialState() {
