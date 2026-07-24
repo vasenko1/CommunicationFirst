@@ -507,10 +507,6 @@ class AppController {
           this.debug.log("Recovery state", this.recovery.state);
           const iceRestart = this.recovery.shouldRestartIce();
 
-          if (iceRestart) {
-              this.debug.log("Recovery", "starting ICE restart");
-          }
-
           await this.createAndSendOffer({ iceRestart });
           return;
       }
