@@ -1,15 +1,3 @@
-export const CALL_STATES = Object.freeze({
-  IDLE: "idle",
-  REQUESTING_MICROPHONE: "requesting_microphone",
-  CONNECTING_SIGNALING: "connecting_signaling",
-  WAITING_FOR_PEER: "waiting_for_peer",
-  NEGOTIATING: "negotiating",
-  CONNECTED: "connected",
-  RECONNECTING: "reconnecting",
-  DISCONNECTING: "disconnecting",
-  ENDED: "ended",
-});
-
 export const END_REASONS = Object.freeze({
   USER: "user",
   PEER: "peer",
@@ -20,17 +8,12 @@ export const END_REASONS = Object.freeze({
 
 export function createInitialState() {
   return {
-    callState: CALL_STATES.IDLE,
+    isReconnecting: false,
     active: false,
     host: false,
     roomId: null,
     peerId: null,
-    ws: null,
     pc: null,
-    localStream: null,
-    pendingCandidates: [],
     offerSent: false,
-    peerJoined: false,
-    endReason: END_REASONS.UNKNOWN,
   };
 }
