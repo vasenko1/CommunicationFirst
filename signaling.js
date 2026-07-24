@@ -251,7 +251,7 @@ export class SignalingSession extends EventTarget {
           this.dispatchEvent(new CustomEvent("trace", {
               detail: {
                   kind: "recv",
-                  type: message.type || "unknown",
+                  type: data?.type || "unknown",
                   size: event.data.length
               }
           }));
