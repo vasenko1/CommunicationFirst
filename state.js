@@ -7,7 +7,6 @@ export const END_REASONS = Object.freeze({
 
 export function createInitialState() {
   return {
-    isReconnecting: false,
     active: false,
     host: false,
     roomId: null,
