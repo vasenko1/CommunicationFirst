@@ -504,7 +504,6 @@ class AppController {
       if (message.type === "peer-ready" && this.state.host) {
           this.ui.setStatus("Соединение...", "🟡");
 
-          this.debug.log("Recovery state", this.recovery.state);
           const iceRestart = this.recovery.shouldRestartIce();
 
           await this.createAndSendOffer({ iceRestart });
