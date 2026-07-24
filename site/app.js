@@ -543,8 +543,6 @@ class AppController {
                   description: answer
               });
           } catch (error) {
-              this.offerSent = false;
-              this.iceRestarting = false;
               this.debug.log("Recovery ERROR", String(error?.message || error));
               throw error;
           }
