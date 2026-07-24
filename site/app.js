@@ -540,6 +540,22 @@ class AppController {
           this.ui.setStatus("Соединение...", "🟡");
 
           const iceRestart = this.recovery.shouldRestartIce();
+          const pendingOffer = this.peer?.pc?.localDescription;
+
+          if (
+              iceRestart &&
+              this.offerSent &&
+              pendingOffer?.type === "offer"
+          ) {
+              this.debug.log("Recovery", "resending pending ICE restart offer");
+
+              this.sendSignal({
+                  type: "offer",
+                  description: pendingOffer
+              });
+
+              return;
+          }
 
           await this.createAndSendOffer({ iceRestart });
           return;
