@@ -250,7 +250,6 @@ class AppController {
                   break;
 
               case "closed":
-                  this.clearReconnectTimer();
                   this.endCall(false, false, END_REASONS.NETWORK);
                   break;
           }
