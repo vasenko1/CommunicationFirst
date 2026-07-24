@@ -8,11 +8,8 @@
 //   - exponential backoff, bounded attempts, "failed" when exhausted
 //   - report WHICH transition happened: connected {reconnect: boolean}
 //
-// Backward compatibility: the current app.js still uses connect() + the legacy
-// "open"/"close"/"error"/"message" events and the SignalingClient name. Those
-// are preserved so this file can be swapped in without touching app.js. The new
-// events ("connected", "statechange", "failed") are additive; app.js will move
-// onto them in a later step.
+// The legacy "open", "close", "error", and "message" events and the
+// SignalingClient alias are retained for compatibility.
 
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 8000;
