@@ -52,10 +52,10 @@ export class SignalingSession extends EventTarget {
     this.reconnectAttempts = 0;
     this._clearReconnectTimer();
     this._clearStableTimer();
+    this._rejectPending(new Error("Signaling connection replaced"));
 
     this.stopHeartbeat();
     this.lastPongAt = 0;
-      
     this._detachAndClose(this.ws);
     this.ws = null;
 
