@@ -54,6 +54,7 @@ class AppController {
     this.reconnectTimer = null;
     this.recoveryVerificationTimer = null;
     this.recoveryAttempts = 0;
+    this.recoveryStartedAt = null;
     this.init();
   }
 
@@ -209,6 +210,13 @@ class AppController {
                   break;
 
               case "connected":
+                  const elapsed = this.recoveryElapsedSeconds();
+                  if (elapsed !== null) {
+                      this.debug.log(
+                          "Recovery timing",
+                          `peer connected after ${elapsed}s`
+                      );
+                  }
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_CONNECTED);
                   this.scheduleConnectionVerification();
                   this.iceRestarting = false;
@@ -330,6 +338,13 @@ class AppController {
 
             if (reconnect) {
                 this.ui.setStatus("Восстанавливаем служебной канал...", "🟠");
+                const elapsed = this.recoveryElapsedSeconds();
+                if (elapsed !== null) {
+                    this.debug.log(
+                        "Recovery timing",
+                        `signaling restored after ${elapsed}s`
+                    );
+                }
 
                 const action = this.emitRecoveryEvent(RECOVERY_EVENTS.TRANSPORT_CONNECTED);
                 if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
@@ -398,9 +413,29 @@ class AppController {
         );
     }
 
+    startRecoveryTiming() {
+        if (this.recoveryStartedAt !== null) return;
+
+        this.recoveryStartedAt = performance.now();
+        this.debug.log("Recovery timing", "started");
+    }
+
+    recoveryElapsedSeconds() {
+        if (this.recoveryStartedAt === null) return null;
+
+        return ((performance.now() - this.recoveryStartedAt) / 1000).toFixed(1);
+    }
+
     emitRecoveryEvent(type) {
         const previousState = this.recovery.state;
         const action = this.recovery.handle({ type });
+        if (
+            this.recoveryStartedAt === null &&
+            previousState === "CONNECTED" &&
+            this.recovery.state !== "CONNECTED"
+        ) {
+            this.startRecoveryTiming();
+        }
 
         this.debug.log(
             "Recovery FSM",
@@ -445,6 +480,16 @@ class AppController {
             );
 
             this.recoveryAttempts = 0;
+
+            const elapsed = this.recoveryElapsedSeconds();
+            if (elapsed !== null) {
+                this.debug.log(
+                    "Recovery timing",
+                    `verified after ${elapsed}s`
+                );
+            }
+
+            this.recoveryStartedAt = null;
             this.debug.log("Recovery", "connection verified");
             
         }, 2000);
@@ -723,6 +768,7 @@ class AppController {
 
     this.state = createInitialState();
     this.recoveryAttempts = 0;
+    this.recoveryStartedAt = null;
     this.iceRestarting = false;
     this.recovery.reset();
     this.clearReconnectTimer();
