@@ -44,10 +44,6 @@ export class SignalingSession extends EventTarget {
       this.heartbeatTimeoutMs = 6000;
   }
 
-  start(roomId, peerId) {
-    return this.connect(roomId, peerId);
-  }
-
   connect(roomId, peerId) {
     this.roomId = roomId;
     this.peerId = peerId;
@@ -176,21 +172,16 @@ export class SignalingSession extends EventTarget {
         }
     }
 
-  stop() {
+  close() {
     this.intentionalClose = true;
     this._clearReconnectTimer();
     this._clearStableTimer();
     this.stopHeartbeat();
     this._setState("disconnected");
-
     const ws = this.ws;
     this.ws = null;
     this._detachAndClose(ws);
     this._rejectPending(new Error("Signaling stopped"));
-  }
-
-  close() {
-    this.stop();
   }
 
   _openSocket() {
