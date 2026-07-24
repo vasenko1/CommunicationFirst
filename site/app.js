@@ -670,7 +670,10 @@ class AppController {
 
     startIceRestart() {
         if (this.recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
-            this.debug.log("Recovery", "giving up");
+            this.debug.log(
+                "Recovery",
+                `giving up after ${this.recoveryAttempts} attempts`
+            );
             this.endCall(false, false, END_REASONS.NETWORK);
             return;
         }
@@ -690,7 +693,10 @@ class AppController {
             this.debug.log("Recovery ERROR", String(error?.message || error));
 
             if (this.recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
-                this.debug.log("Recovery", "giving up");
+                this.debug.log(
+                    "Recovery",
+                    `giving up after ${this.recoveryAttempts} attempts`
+                );
                 this.endCall(false, false, END_REASONS.NETWORK);
                 return;
             }
