@@ -502,6 +502,9 @@ class AppController {
 
       if (message.type === "offer" && !this.state.host) {
           const restartOffer = this.recovery.shouldRestartIce();
+          if (restartOffer) {
+              this.clearReconnectTimer();
+          }
           this.debug.log(
               "Recovery",
               restartOffer
@@ -542,6 +545,9 @@ class AppController {
 
       if (message.type === "answer" && this.state.host) {
           this.debug.log("Recovery", "RX answer");
+          if (this.recovery.shouldRestartIce()) {
+              this.clearReconnectTimer();
+          }
 
           try {
               await this.peer.setRemoteDescription(message.description);
