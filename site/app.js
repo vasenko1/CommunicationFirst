@@ -251,7 +251,6 @@ class AppController {
 
               case "closed":
                   this.clearReconnectTimer();
-                  this.stopStatsPolling();
                   this.endCall(false, false, END_REASONS.NETWORK);
                   break;
           }
@@ -567,7 +566,6 @@ class AppController {
 
     if (message.type === "leave") {
       this.debug.log("Разговор", "собеседник завершил разговор");
-      this.stopStatsPolling();
       this.endCall(false, false, END_REASONS.PEER);
     }
   }
