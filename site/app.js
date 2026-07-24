@@ -210,7 +210,6 @@ class AppController {
               case "connected":
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_CONNECTED);
                   this.scheduleConnectionVerification();
-                  this.state.isReconnecting = false;
                   this.state.iceRestarting = false;
 
                   if (this.reconnectTimer) {
@@ -229,7 +228,6 @@ class AppController {
                       this.recoveryVerificationTimer = null;
                   }
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_DISCONNECTED);
-                  this.state.isReconnecting = true;
                   
                   if (!this.reconnectTimer) {
                       this.reconnectTimer = setTimeout(() => {
@@ -256,7 +254,6 @@ class AppController {
                   if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
                       this.attemptIceRecovery();
                   }
-                  this.state.isReconnecting = true;
                   if (this.reconnectTimer) {
                       clearTimeout(this.reconnectTimer);
                       this.reconnectTimer = null;
@@ -268,7 +265,6 @@ class AppController {
                   break;
 
               case "closed":
-                  this.state.isReconnecting = true;
                   if (this.reconnectTimer) {
                       clearTimeout(this.reconnectTimer);
                       this.reconnectTimer = null;
@@ -354,7 +350,6 @@ class AppController {
             if (!this.state.active) return;
 
             if (reconnect) {
-                this.state.isReconnecting = true;
                 this.ui.setStatus("Восстанавливаем служебной канал...", "🟠");
 
                 const action = this.emitRecoveryEvent(RECOVERY_EVENTS.TRANSPORT_CONNECTED);
@@ -383,7 +378,6 @@ class AppController {
                 this.emitRecoveryEvent(
                     RECOVERY_EVENTS.TRANSPORT_RECONNECTING
                 );
-                this.state.isReconnecting = true;
                 this.ui.setStatus("Восстанавливаем служебный канал...", "🟠");
             }
         });
@@ -530,9 +524,10 @@ class AppController {
       }
 
       if (message.type === "offer" && !this.state.host) {
+          const restartOffer = this.recovery.shouldRestartIce();
           this.debug.log(
               "Recovery",
-              this.state.isReconnecting
+              restartOffer
                   ? "RX restart offer"
                   : "RX offer"
           );
@@ -542,7 +537,7 @@ class AppController {
 
               this.debug.log(
                   "Recovery",
-                  this.state.isReconnecting
+                  restartOffer
                       ? "Restart offer applied"
                       : "Offer applied"
               );
@@ -551,7 +546,7 @@ class AppController {
 
               this.debug.log(
                   "Recovery",
-                  this.state.isReconnecting
+                  restartOffer
                       ? "TX restart answer"
                       : "TX answer"
               );
