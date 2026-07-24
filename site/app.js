@@ -1,6 +1,6 @@
 import { createInitialState, END_REASONS } from "./state.js";
 import { AppUI } from "./ui.js";
-import { SignalingClient } from "./signaling.js";
+import { SignalingSession } from "./signaling.js";
 import { VoicePeer } from "./peer.js";
 import { DebugPanel } from "./debug.js";
 import { RecoveryController, RECOVERY_EVENTS, RECOVERY_ACTIONS } from "./recovery.js";
@@ -307,7 +307,7 @@ class AppController {
   }
 
     async connectSignaling() {
-        this.signaling = new SignalingClient(SIGNALING_BASE);
+        this.signaling = new SignalingSession(SIGNALING_BASE);
         this.signaling.addEventListener("trace", (event) => {
             const d = event.detail || {};
 

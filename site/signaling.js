@@ -8,8 +8,8 @@
 //   - exponential backoff, bounded attempts, "failed" when exhausted
 //   - report WHICH transition happened: connected {reconnect: boolean}
 //
-// The legacy "close", "error", and "message" events and the
-// SignalingClient alias are retained for compatibility.
+// The legacy "close", "error", and "message" events are retained
+// for compatibility.
 
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 8000;
@@ -357,5 +357,3 @@ export class SignalingSession extends EventTarget {
     this.stableTimer = null;
   }
 }
-
-export class SignalingClient extends SignalingSession {}
