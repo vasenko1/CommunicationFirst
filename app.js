@@ -7,6 +7,7 @@ import { RecoveryController, RECOVERY_EVENTS, RECOVERY_ACTIONS } from "./recover
 
 const SIGNALING_BASE = "wss://communication-first.communication-first-igor.workers.dev";
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+const MAX_RECOVERY_ATTEMPTS = 3;
 
 function describeCandidate(candidate) {
   const raw = candidate?.candidate || "";
@@ -53,7 +54,6 @@ class AppController {
     this.reconnectTimer = null;
     this.recoveryVerificationTimer = null;
     this.recoveryAttempts = 0;
-    this.maxRecoveryAttempts = 3;
     this.init();
   }
 
@@ -212,22 +212,14 @@ class AppController {
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_CONNECTED);
                   this.scheduleConnectionVerification();
                   this.iceRestarting = false;
-
-                  if (this.reconnectTimer) {
-                      clearTimeout(this.reconnectTimer);
-                      this.reconnectTimer = null;
-                  }
-
+                  this.clearReconnectTimer();
                   this.stopStatsPolling();
                   this.ui.setStatus("Разговор", "🟢");
                   this.startStatsPolling();
                   break;
 
               case "disconnected":
-                  if (this.recoveryVerificationTimer) {
-                      clearTimeout(this.recoveryVerificationTimer);
-                      this.recoveryVerificationTimer = null;
-                  }
+                  this.clearRecoveryVerificationTimer();
                   this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_DISCONNECTED);
                   
                   if (!this.reconnectTimer) {
@@ -246,29 +238,18 @@ class AppController {
                   break;
 
               case "failed":
-                  if (this.recoveryVerificationTimer) {
-                      clearTimeout(this.recoveryVerificationTimer);
-                      this.recoveryVerificationTimer = null;
-                  }
+                  this.clearRecoveryVerificationTimer();
                   const action = this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_FAILED);
                   
                   if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
                       this.attemptIceRecovery();
                   }
-                  if (this.reconnectTimer) {
-                      clearTimeout(this.reconnectTimer);
-                      this.reconnectTimer = null;
-                  }
+                  this.clearReconnectTimer();
                   this.stopStatsPolling();
                   this.ui.setStatus("Восстанавливаем соединение...", "🟠");
                   break;
 
               case "closed":
-                  if (this.reconnectTimer) {
-                      clearTimeout(this.reconnectTimer);
-                      this.reconnectTimer = null;
-                  }
-                  this.stopStatsPolling();
                   this.endCall(false, false, END_REASONS.NETWORK);
                   break;
           }
@@ -435,11 +416,20 @@ class AppController {
         return action;
     }
 
+    clearReconnectTimer() {
+        if (!this.reconnectTimer) return;
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+    }
+
+    clearRecoveryVerificationTimer() {
+        if (!this.recoveryVerificationTimer) return;
+        clearTimeout(this.recoveryVerificationTimer);
+        this.recoveryVerificationTimer = null;
+    }
+
     scheduleConnectionVerification() {
-        if (this.recoveryVerificationTimer) {
-            clearTimeout(this.recoveryVerificationTimer);
-            this.recoveryVerificationTimer = null;
-        }
+        this.clearRecoveryVerificationTimer();
 
         if (!this.recovery.isVerifyingConnection()) {
             return;
@@ -504,12 +494,7 @@ class AppController {
       if (message.type === "peer-ready" && this.state.host) {
           this.ui.setStatus("Соединение...", "🟡");
 
-          this.debug.log("Recovery state", this.recovery.state);
           const iceRestart = this.recovery.shouldRestartIce();
-
-          if (iceRestart) {
-              this.debug.log("Recovery", "starting ICE restart");
-          }
 
           await this.createAndSendOffer({ iceRestart });
           return;
@@ -548,8 +533,6 @@ class AppController {
                   description: answer
               });
           } catch (error) {
-              this.offerSent = false;
-              this.iceRestarting = false;
               this.debug.log("Recovery ERROR", String(error?.message || error));
               throw error;
           }
@@ -582,7 +565,6 @@ class AppController {
 
     if (message.type === "leave") {
       this.debug.log("Разговор", "собеседник завершил разговор");
-      this.stopStatsPolling();
       this.endCall(false, false, END_REASONS.PEER);
     }
   }
@@ -607,7 +589,7 @@ class AppController {
     }
 
     startIceRestart() {
-        if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+        if (this.recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
             this.debug.log("Recovery", "giving up");
             this.endCall(false, false, END_REASONS.NETWORK);
             return;
@@ -624,11 +606,10 @@ class AppController {
         this.debug.log("Recovery", `starting ICE restart #${this.recoveryAttempts}`);
 
         void this.createAndSendOffer({ iceRestart: true }).catch((error) => {
-            this.offerSent = false;
             this.iceRestarting = false;
             this.debug.log("Recovery ERROR", String(error?.message || error));
 
-            if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+            if (this.recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
                 this.debug.log("Recovery", "giving up");
                 this.endCall(false, false, END_REASONS.NETWORK);
                 return;
@@ -721,11 +702,7 @@ class AppController {
     const peer = this.peer;
     const peerId = this.state.peerId;
 
-      if (this.recoveryVerificationTimer) {
-          clearTimeout(this.recoveryVerificationTimer);
-          this.recoveryVerificationTimer = null;
-      }
-
+    this.clearRecoveryVerificationTimer();
     this.stopStatsPolling();
 
     if (notifyPeer && ws) {
@@ -739,13 +716,10 @@ class AppController {
     }
 
     this.state = createInitialState();
-      this.recoveryAttempts = 0;
-      this.iceRestarting = false;
-      this.recovery.reset();
-      if (this.reconnectTimer) {
-          clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = null;
-      }
+    this.recoveryAttempts = 0;
+    this.iceRestarting = false;
+    this.recovery.reset();
+    this.clearReconnectTimer();
     this.signaling = null;
     this.peer = null;
     this.offerSent = false;
