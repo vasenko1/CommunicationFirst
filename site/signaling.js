@@ -8,7 +8,7 @@
 //   - exponential backoff, bounded attempts, "failed" when exhausted
 //   - report WHICH transition happened: connected {reconnect: boolean}
 //
-// The legacy "open", "close", "error", and "message" events and the
+// The legacy "close", "error", and "message" events and the
 // SignalingClient alias are retained for compatibility.
 
 const RECONNECT_BASE_MS = 500;
@@ -225,7 +225,6 @@ export class SignalingSession extends EventTarget {
       this.dispatchEvent(new CustomEvent("connected", {
         detail: { reconnect }
       }));
-      this.dispatchEvent(new Event("open"));
 
       if (this.connectResolve) {
         const resolve = this.connectResolve;
