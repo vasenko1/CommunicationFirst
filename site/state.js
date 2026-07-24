@@ -13,6 +13,5 @@ export function createInitialState() {
     host: false,
     roomId: null,
     peerId: null,
-    offerSent: false,
   };
 }

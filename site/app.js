@@ -48,6 +48,7 @@ class AppController {
     this.recovery = new RecoveryController();
     this.signaling = null;
     this.peer = null;
+    this.offerSent = false;
     this.statsTimer = null;
     this.transportConnected = false;
     this.reconnectTimer = null;
@@ -130,7 +131,7 @@ class AppController {
     this.state.host = host;
     this.state.roomId = roomId;
     this.state.peerId = this.randomHex(8);
-    this.state.offerSent = false;
+    this.offerSent = false;
 
     this.ui.setButtonDisabled(true);
 
@@ -263,7 +264,7 @@ class AppController {
                   }
                   this.stopStatsPolling();
                   this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-                  this.state.offerSent = false;
+                  this.offerSent = false;
                   this.state.iceRestarting = false;
                   break;
 
@@ -515,7 +516,7 @@ class AppController {
       if (message.type === "peer-ready" && this.state.host) {
           this.ui.setStatus("Соединение...", "🟡");
 
-          if (!this.state.offerSent) {
+          if (!this.offerSent) {
               this.debug.log("Recovery state", this.recovery.state);
               const iceRestart = this.recovery.shouldRestartIce();
 
@@ -561,7 +562,7 @@ class AppController {
                   description: answer
               });
           } catch (error) {
-              this.state.offerSent = false;
+              this.offerSent = false;
               this.state.iceRestarting = false;
               this.debug.log("Recovery ERROR", String(error?.message || error));
               throw error;
@@ -577,7 +578,7 @@ class AppController {
               await this.peer.setRemoteDescription(message.description);
               this.debug.log("Recovery", "Answer applied");
           } catch (error) {
-              this.state.offerSent = false;
+              this.offerSent = false;
               this.state.iceRestarting = false;
               this.debug.log("Recovery ERROR", String(error?.message || error));
               throw error;
@@ -601,9 +602,9 @@ class AppController {
   }
 
     async createAndSendOffer({ iceRestart = false } = {}) {
-        if (!this.peer?.pc || this.state.offerSent) return;
+        if (!this.peer?.pc || this.offerSent) return;
 
-        this.state.offerSent = true;
+        this.offerSent = true;
         this.ui.setStatus("Соединение...", "🟡");
 
         try {
@@ -614,7 +615,7 @@ class AppController {
                 description: offer
             });
         } catch (error) {
-            this.state.offerSent = false;
+            this.offerSent = false;
             throw error;
         }
     }
@@ -630,14 +631,14 @@ class AppController {
 
         this.stopStatsPolling();
         this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-        this.state.offerSent = false;
+        this.offerSent = false;
         this.state.iceRestarting = true;
         this.recoveryAttempts += 1;
 
         this.debug.log("Recovery", `starting ICE restart #${this.recoveryAttempts}`);
 
         void this.createAndSendOffer({ iceRestart: true }).catch((error) => {
-            this.state.offerSent = false;
+            this.offerSent = false;
             this.state.iceRestarting = false;
             this.debug.log("Recovery ERROR", String(error?.message || error));
 
@@ -762,6 +763,7 @@ class AppController {
       }
     this.signaling = null;
     this.peer = null;
+    this.offerSent = false;
 
     if (ws) {
       try {
