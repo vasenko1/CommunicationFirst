@@ -606,12 +606,21 @@ class AppController {
 
       if (message.type === "answer" && this.state.host) {
           this.debug.log("Recovery", "RX answer");
+          if (this.peer?.pc?.signalingState !== "have-local-offer") {
+              this.debug.log(
+                  "Recovery",
+                  `ignoring stale answer in ${this.peer?.pc?.signalingState || "unknown"} state`
+              );
+              return;
+          }
           if (this.recovery.shouldRestartIce()) {
               this.clearReconnectTimer();
           }
 
           try {
               await this.peer.setRemoteDescription(message.description);
+              this.offerSent = false;
+              this.iceRestarting = false;
               this.debug.log("Recovery", "Answer applied");
           } catch (error) {
               this.offerSent = false;
