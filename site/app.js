@@ -261,8 +261,6 @@ class AppController {
                   }
                   this.stopStatsPolling();
                   this.ui.setStatus("Восстанавливаем соединение...", "🟠");
-                  this.offerSent = false;
-                  this.iceRestarting = false;
                   break;
 
               case "closed":
