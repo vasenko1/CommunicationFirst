@@ -207,10 +207,6 @@ export class SignalingSession extends EventTarget {
     }
 
     this.ws = ws;
-
-    window.__closeSignalingForTest = () => {
-      this.ws?.close(4000, "Debug signaling test");
-    };
     ws.onopen = () => {
       if (this.ws !== ws) return;
       const reconnect = this.openedOnce;
