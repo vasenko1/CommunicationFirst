@@ -74,10 +74,6 @@ export class RecoveryController {
                     case RECOVERY_EVENTS.PEER_FAILED:
                         return this.startIceRestart();
 
-                    case RECOVERY_EVENTS.TRANSPORT_RECONNECTING:
-                    case RECOVERY_EVENTS.TRANSPORT_FAILED:
-                        return this.awaitTransport();
-
                     default:
                         return RECOVERY_ACTIONS.NONE;
                 }
@@ -116,8 +112,10 @@ export class RecoveryController {
                     case RECOVERY_EVENTS.PEER_CONNECTED:
                         return this.enterVerifiedConnected();
 
-                    case RECOVERY_EVENTS.PEER_DISCONNECTED:
                     case RECOVERY_EVENTS.PEER_FAILED:
+                        return this.startIceRestart();
+
+                    case RECOVERY_EVENTS.PEER_DISCONNECTED:
                         return RECOVERY_ACTIONS.NONE;
 
                     case RECOVERY_EVENTS.TRANSPORT_RECONNECTING:
@@ -138,10 +136,6 @@ export class RecoveryController {
 
                     case RECOVERY_EVENTS.PEER_DISCONNECTED:
                         return this.enterDisconnected();
-
-                    case RECOVERY_EVENTS.TRANSPORT_RECONNECTING:
-                    case RECOVERY_EVENTS.TRANSPORT_FAILED:
-                        return this.awaitTransport();
 
                     default:
                         return RECOVERY_ACTIONS.NONE;

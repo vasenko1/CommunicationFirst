@@ -248,8 +248,9 @@ class AppController {
               case "failed":
                   this.clearRecoveryVerificationTimer();
                   const action = this.emitRecoveryEvent(RECOVERY_EVENTS.PEER_FAILED);
-                  
+
                   if (action === RECOVERY_ACTIONS.START_ICE_RESTART) {
+                      this.iceRestarting = false;
                       this.attemptIceRecovery();
                   }
                   this.clearReconnectTimer();
@@ -368,6 +369,9 @@ class AppController {
             if (!this.state.active) return;
     
             if (state === "reconnecting") {
+                if (this.recovery.shouldRestartIce()) {
+                    this.iceRestarting = false;
+                }
                 this.emitRecoveryEvent(
                     RECOVERY_EVENTS.TRANSPORT_RECONNECTING
                 );
