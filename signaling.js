@@ -8,11 +8,8 @@
 //   - exponential backoff, bounded attempts, "failed" when exhausted
 //   - report WHICH transition happened: connected {reconnect: boolean}
 //
-// Backward compatibility: the current app.js still uses connect() + the legacy
-// "open"/"close"/"error"/"message" events and the SignalingClient name. Those
-// are preserved so this file can be swapped in without touching app.js. The new
-// events ("connected", "statechange", "failed") are additive; app.js will move
-// onto them in a later step.
+// The legacy "close", "error", and "message" events are retained
+// for compatibility.
 
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 8000;
@@ -47,10 +44,6 @@ export class SignalingSession extends EventTarget {
       this.heartbeatTimeoutMs = 6000;
   }
 
-  start(roomId, peerId) {
-    return this.connect(roomId, peerId);
-  }
-
   connect(roomId, peerId) {
     this.roomId = roomId;
     this.peerId = peerId;
@@ -59,10 +52,10 @@ export class SignalingSession extends EventTarget {
     this.reconnectAttempts = 0;
     this._clearReconnectTimer();
     this._clearStableTimer();
+    this._rejectPending(new Error("Signaling connection replaced"));
 
     this.stopHeartbeat();
     this.lastPongAt = 0;
-      
     this._detachAndClose(this.ws);
     this.ws = null;
 
@@ -179,21 +172,16 @@ export class SignalingSession extends EventTarget {
         }
     }
 
-  stop() {
+  close() {
     this.intentionalClose = true;
     this._clearReconnectTimer();
     this._clearStableTimer();
     this.stopHeartbeat();
     this._setState("disconnected");
-
     const ws = this.ws;
     this.ws = null;
     this._detachAndClose(ws);
     this._rejectPending(new Error("Signaling stopped"));
-  }
-
-  close() {
-    this.stop();
   }
 
   _openSocket() {
@@ -228,7 +216,6 @@ export class SignalingSession extends EventTarget {
       this.dispatchEvent(new CustomEvent("connected", {
         detail: { reconnect }
       }));
-      this.dispatchEvent(new Event("open"));
 
       if (this.connectResolve) {
         const resolve = this.connectResolve;
@@ -361,5 +348,3 @@ export class SignalingSession extends EventTarget {
     this.stableTimer = null;
   }
 }
-
-export class SignalingClient extends SignalingSession {}
